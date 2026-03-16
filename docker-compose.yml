@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: echo-backend
+    ports:
+      - "8080:8080"
+    environment:
+      # Veritabanı
+      DATABASE_URL:      jdbc:postgresql://db:5432/echo_prod
+      DATABASE_USERNAME: ${DB_USER}
+      DATABASE_PASSWORD: ${DB_PASS}
+      # Güvenlik — ZORUNLU, default yok
+      JWT_SECRET:        ${JWT_SECRET}
+      # AI — varsayılan: gemini (en ucuz)
+      AI_PROVIDER:       ${AI_PROVIDER:-gemini}
+      OPENAI_API_KEY:    ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY:    ${GEMINI_API_KEY:-}
+      CLAUDE_API_KEY:    ${CLAUDE_API_KEY:-}
+      # Ollama (self-hosted, opsiyonel)
+      OLLAMA_BASE_URL:   ${OLLAMA_BASE_URL:-http://localhost:11434}
+      # Depolama
+      STORAGE_TYPE:      local
+      LOCAL_STORAGE_PATH: /tmp/echo-audio
+    volumes:
+      - audio_tmp:/tmp/echo-audio     # geçici audio (analiz sonrası silinir)
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  db:
+    image: postgres:16-alpine
+    container_name: echo-db
+    environment:
+      POSTGRES_DB:       echo_prod
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d echo_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Güvenlik: sadece uygulama container'ı erişebilir, dışarıya port expose edilmez
+
+volumes:
+  pgdata:
+    driver: local
+  audio_tmp:
+    driver: local
