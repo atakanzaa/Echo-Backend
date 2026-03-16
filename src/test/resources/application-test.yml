@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:echo_test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: test-secret-key-for-unit-testing-only-not-for-production
+    access-token-expiration: 900
+    refresh-token-expiration: 2592000
+  ai:
+    provider: openai
+    openai:
+      api-key: test-key
+      transcription-model: whisper-1
+      analysis-model: gpt-4o-mini
+      coach-model: gpt-4o-mini
+    gemini:
+      api-key: test-key
+      model: gemini-1.5-flash
+    claude:
+      api-key: test-key
+      model: claude-haiku-4-5-20251001
+  storage:
+    type: local
+    local-path: /tmp/echo-test
+  async:
+    core-pool-size: 1
+    max-pool-size: 2
+    queue-capacity: 10

@@ -1,0 +1,113 @@
+package com.echo.service;
+
+import com.echo.domain.token.RefreshToken;
+import com.echo.domain.user.User;
+import com.echo.dto.request.LoginRequest;
+import com.echo.dto.request.RegisterRequest;
+import com.echo.dto.response.AuthResponse;
+import com.echo.exception.EchoException;
+import com.echo.repository.RefreshTokenRepository;
+import com.echo.repository.UserRepository;
+import com.echo.security.JwtTokenProvider;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class AuthServiceTest {
+
+    @Mock UserRepository         userRepository;
+    @Mock RefreshTokenRepository refreshTokenRepository;
+    @Mock PasswordEncoder        passwordEncoder;
+    @Mock JwtTokenProvider       jwtTokenProvider;
+
+    @InjectMocks AuthService authService;
+
+    @Test
+    void register_withNewEmail_returnsAuthResponse() {
+        // given
+        RegisterRequest request = new RegisterRequest("test@echo.com", "Test1234!", "Test User", "UTC");
+        given(userRepository.existsByEmail(request.email())).willReturn(false);
+        given(passwordEncoder.encode(anyString())).willReturn("hashed");
+        User saved = User.builder()
+                .id(UUID.randomUUID())
+                .email(request.email())
+                .displayName(request.displayName())
+                .passwordHash("hashed")
+                .timezone(request.timezone())
+                .build();
+        given(userRepository.save(any(User.class))).willReturn(saved);
+        given(jwtTokenProvider.generateAccessToken(any(UUID.class), anyString())).willReturn("access-token");
+        given(refreshTokenRepository.save(any(RefreshToken.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        AuthResponse response = authService.register(request);
+
+        // then
+        assertThat(response.accessToken()).isEqualTo("access-token");
+        assertThat(response.user().email()).isEqualTo("test@echo.com");
+    }
+
+    @Test
+    void register_withExistingEmail_throwsEchoException() {
+        // given
+        RegisterRequest request = new RegisterRequest("existing@echo.com", "Test1234!", "User", "UTC");
+        given(userRepository.existsByEmail(request.email())).willReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOf(EchoException.class);
+    }
+
+    @Test
+    void login_withValidCredentials_returnsAuthResponse() {
+        // given
+        LoginRequest request = new LoginRequest("test@echo.com", "Test1234!");
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email(request.email())
+                .passwordHash("hashed")
+                .timezone("UTC")
+                .displayName("Test")
+                .build();
+        given(userRepository.findByEmail(request.email())).willReturn(Optional.of(user));
+        given(passwordEncoder.matches(request.password(), "hashed")).willReturn(true);
+        given(jwtTokenProvider.generateAccessToken(eq(user.getId()), anyString())).willReturn("access-token");
+        given(refreshTokenRepository.save(any(RefreshToken.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        AuthResponse response = authService.login(request);
+
+        // then
+        assertThat(response.accessToken()).isEqualTo("access-token");
+    }
+
+    @Test
+    void login_withWrongPassword_throwsEchoException() {
+        // given
+        LoginRequest request = new LoginRequest("test@echo.com", "WrongPass!");
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email(request.email())
+                .passwordHash("hashed")
+                .timezone("UTC")
+                .displayName("Test")
+                .build();
+        given(userRepository.findByEmail(request.email())).willReturn(Optional.of(user));
+        given(passwordEncoder.matches(request.password(), "hashed")).willReturn(false);
+
+        // when / then
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(EchoException.class);
+    }
+}
