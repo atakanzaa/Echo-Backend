@@ -1,0 +1,92 @@
+spring:
+  application:
+    name: echo-backend
+
+  threads:
+    virtual:
+      enabled: true  # Java 21 — tüm Tomcat request handler'ları virtual thread'de çalışır
+
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  datasource:
+    url:      ${DATABASE_URL:jdbc:postgresql://localhost:5432/echo_db}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  servlet:
+    multipart:
+      max-file-size: ${MAX_AUDIO_SIZE:50MB}
+      max-request-size: ${MAX_AUDIO_SIZE:50MB}
+
+app:
+  jwt:
+    secret:                       ${JWT_SECRET}  # Zorunlu — default yok. Başlatma başarısız olur.
+    access-token-expiry-seconds:  ${JWT_ACCESS_EXPIRY:900}
+    refresh-token-expiry-seconds: ${JWT_REFRESH_EXPIRY:2592000}
+
+  ai:
+    provider: ${AI_PROVIDER:openai}
+    timeout-seconds: ${AI_TIMEOUT:60}
+    openai:
+      api-key:          ${OPENAI_API_KEY:}
+      transcribe-model: ${OPENAI_TRANSCRIBE_MODEL:whisper-1}
+      analysis-model:   ${OPENAI_ANALYSIS_MODEL:gpt-4o-mini}
+      coach-model:      ${OPENAI_COACH_MODEL:gpt-4o-mini}
+    gemini:
+      api-key:          ${GEMINI_API_KEY:}
+      analysis-model:   ${GEMINI_ANALYSIS_MODEL:gemini-2.5-flash}
+      coach-model:      ${GEMINI_COACH_MODEL:gemini-2.5-flash}
+      transcribe-model: ${GEMINI_TRANSCRIBE_MODEL:gemini-2.5-flash}
+    claude:
+      api-key:          ${CLAUDE_API_KEY:}
+      analysis-model:   ${CLAUDE_ANALYSIS_MODEL:claude-haiku-4-5-20251001}
+      coach-model:      ${CLAUDE_COACH_MODEL:claude-haiku-4-5-20251001}
+    ollama:
+      base-url:         ${OLLAMA_BASE_URL:http://localhost:11434}
+      analysis-model:   ${OLLAMA_ANALYSIS_MODEL:llama3.1:8b}
+      coach-model:      ${OLLAMA_COACH_MODEL:llama3.1:8b}
+
+  storage:
+    type:       ${STORAGE_TYPE:local}
+    local-path: ${LOCAL_STORAGE_PATH:/tmp/echo-audio}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      ai-provider:
+        sliding-window-size: 10
+        failure-rate-threshold: 50          # %50 hata oranında devre açılır
+        wait-duration-in-open-state: 30s    # 30s açık kalır, sonra half-open dener
+        permitted-number-of-calls-in-half-open-state: 3
+        slow-call-duration-threshold: 45s   # 45s'den uzun çağrılar "yavaş" sayılır
+        slow-call-rate-threshold: 80        # %80 yavaş çağrıda devre açılır
+        register-health-indicator: true
