@@ -11,76 +11,101 @@ import com.echo.dto.response.JournalEntryResponse;
 import com.echo.dto.response.JournalStatusResponse;
 import com.echo.event.JournalAnalysisCompletedEvent;
 import com.echo.exception.ResourceNotFoundException;
-import com.echo.exception.UnauthorizedException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class JournalService {
 
-    private final JournalEntryRepository  journalEntryRepository;
+    private final JournalEntryRepository journalEntryRepository;
     private final AnalysisResultRepository analysisResultRepository;
-    private final UserRepository           userRepository;
-    private final StorageService           storageService;
-    private final AIProviderRouter         router;
-    private final AchievementService       achievementService;
+    private final UserRepository userRepository;
+    private final StorageService storageService;
+    private final AIProviderRouter router;
+    private final AchievementService achievementService;
     private final ApplicationEventPublisher eventPublisher;
-
-    // MARK: — Create Entry (sync — anında 202 döner)
+    // separate bean fixes @Transactional self-invocation in @Async methods
+    private final JournalEntryUpdater entryUpdater;
 
     @Transactional
     public JournalEntryResponse createEntry(UUID userId,
                                             byte[] audioBytes,
                                             String filename,
                                             OffsetDateTime recordedAt,
-                                            int durationSeconds) {
+                                            int durationSeconds,
+                                            String idempotencyKey) {
+        // Deduplicate: return existing entry for repeated uploads with same key
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Optional<JournalEntry> existing = journalEntryRepository.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                JournalEntry e = existing.get();
+                AnalysisResult analysis = analysisResultRepository.findByJournalEntryId(e.getId()).orElse(null);
+                log.info("Idempotent request — returning existing entry: entryId={} key={}", e.getId(), idempotencyKey);
+                return JournalEntryResponse.from(e, analysis);
+            }
+        }
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         JournalEntry entry = JournalEntry.builder()
                 .user(user)
                 .recordedAt(recordedAt)
                 .entryDate(recordedAt.toLocalDate())
                 .audioDurationSeconds(durationSeconds)
+                .idempotencyKey(idempotencyKey)
                 .status(EntryStatus.UPLOADING)
                 .build();
 
-        // saveAndFlush: INSERT hemen çalışır → @CreationTimestamp null kalmaz
+        // saveAndFlush ensures @CreationTimestamp is populated before response
         entry = journalEntryRepository.saveAndFlush(entry);
 
-        // Async pipeline başlat — bu thread beklemez
+        // fire-and-forget async pipeline
         processEntryAsync(entry.getId(), audioBytes, filename, userId);
 
         return JournalEntryResponse.from(entry, null);
     }
 
-    /**
-     * Transcript-only path — iOS Apple Speech STT sonucunu doğrudan alır.
-     * Audio sunucuya gelmez (gizlilik). UPLOADING ve TRANSCRIBING adımları atlanır.
-     */
+    // transcript-only path: iOS on-device STT, no audio upload
     @Transactional
     public JournalEntryResponse createEntryFromTranscript(UUID userId,
                                                           String transcript,
                                                           OffsetDateTime recordedAt,
-                                                          int durationSeconds) {
+                                                          int durationSeconds,
+                                                          String idempotencyKey) {
+        // Deduplicate: return existing entry if same idempotency key already processed
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Optional<JournalEntry> existing = journalEntryRepository.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                JournalEntry e = existing.get();
+                AnalysisResult analysis = analysisResultRepository.findByJournalEntryId(e.getId()).orElse(null);
+                log.info("Idempotent request — returning existing entry: entryId={} key={}", e.getId(), idempotencyKey);
+                return JournalEntryResponse.from(e, analysis);
+            }
+        }
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         JournalEntry entry = JournalEntry.builder()
                 .user(user)
@@ -88,10 +113,10 @@ public class JournalService {
                 .entryDate(recordedAt.toLocalDate())
                 .audioDurationSeconds(durationSeconds)
                 .transcript(transcript)
+                .idempotencyKey(idempotencyKey)
                 .status(EntryStatus.ANALYZING)
                 .build();
 
-        // saveAndFlush: INSERT hemen çalışır → @CreationTimestamp null kalmaz
         entry = journalEntryRepository.saveAndFlush(entry);
         analyzeTranscriptAsync(entry.getId(), transcript, userId);
 
@@ -99,75 +124,67 @@ public class JournalService {
     }
 
     @Async("journalProcessingExecutor")
-    public CompletableFuture<Void> analyzeTranscriptAsync(UUID entryId, String transcript, UUID userId) {
-        log.info("Transcript analiz başladı: entryId={}", entryId);
+    public void analyzeTranscriptAsync(UUID entryId, String transcript, UUID userId) {
+        log.info("Transcript analysis started: entryId={}", entryId);
         try {
             String timezone = getUserTimezone(userId);
             AIAnalysisResponse analysis = router.analysis()
                     .analyze(new AIAnalysisRequest(transcript, timezone));
             saveAnalysisResult(entryId, userId, analysis);
-            updateStatus(entryId, EntryStatus.COMPLETE);
+            entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
-            log.info("Transcript analiz tamamlandı: entryId={}", entryId);
+            log.info("Transcript analysis completed: entryId={}", entryId);
         } catch (Exception e) {
-            log.error("Transcript analiz hatası: entryId={}", entryId, e);
-            markFailed(entryId, e.getMessage());
+            log.error("Transcript analysis failed: entryId={}", entryId, e);
+            entryUpdater.markFailed(entryId, e.getMessage());
         }
-        return CompletableFuture.completedFuture(null);
     }
-
-    // MARK: — Async Pipeline
 
     @Async("journalProcessingExecutor")
-    public CompletableFuture<Void> processEntryAsync(UUID entryId,
-                                                     byte[] audioBytes,
-                                                     String filename,
-                                                     UUID userId) {
-        log.info("Async pipeline başladı: entryId={}", entryId);
+    public void processEntryAsync(UUID entryId,
+                                  byte[] audioBytes,
+                                  String filename,
+                                  UUID userId) {
+        log.info("Async pipeline started: entryId={}", entryId);
 
         try {
-            // 1. Ses dosyasını sakla
-            updateStatus(entryId, EntryStatus.TRANSCRIBING);
+            // 1. save audio file
+            entryUpdater.updateStatus(entryId, EntryStatus.TRANSCRIBING);
             String audioUrl = storageService.save(audioBytes, filename);
-            setAudioUrl(entryId, audioUrl);
+            entryUpdater.setAudioUrl(entryId, audioUrl);
 
-            // 2. Transkripsiyon
+            // 2. transcribe
             String transcript = router.transcription().transcribe(audioBytes, filename);
-            setTranscript(entryId, transcript);
-            updateStatus(entryId, EntryStatus.ANALYZING);
+            entryUpdater.setTranscript(entryId, transcript);
+            entryUpdater.updateStatus(entryId, EntryStatus.ANALYZING);
 
-            // 3. Ses dosyasını hemen sil — gizlilik
+            // 3. delete audio immediately for privacy
             storageService.delete(audioUrl);
-            clearAudioUrl(entryId);
+            entryUpdater.clearAudioUrl(entryId);
 
-            // 4. AI Analizi
+            // 4. AI analysis
             String timezone = getUserTimezone(userId);
             AIAnalysisResponse analysis = router.analysis()
                     .analyze(new AIAnalysisRequest(transcript, timezone));
 
-            // 5. Analiz sonucunu kaydet
+            // 5. save analysis result
             saveAnalysisResult(entryId, userId, analysis);
-            updateStatus(entryId, EntryStatus.COMPLETE);
+            entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
 
-            // 6. Achievement kontrolü
+            // 6. check achievements
             achievementService.checkAndAward(userId);
 
-            log.info("Async pipeline tamamlandı: entryId={}", entryId);
-
+            log.info("Async pipeline completed: entryId={}", entryId);
         } catch (Exception e) {
-            log.error("Async pipeline hatası: entryId={}", entryId, e);
-            markFailed(entryId, e.getMessage());
+            log.error("Async pipeline failed: entryId={}", entryId, e);
+            entryUpdater.markFailed(entryId, e.getMessage());
         }
-
-        return CompletableFuture.completedFuture(null);
     }
-
-    // MARK: — Read Operations
 
     @Transactional(readOnly = true)
     public JournalEntryResponse getEntry(UUID entryId, UUID userId) {
         JournalEntry entry = journalEntryRepository.findByIdAndUserId(entryId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Günlük girişi bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Journal entry not found"));
         AnalysisResult analysis = analysisResultRepository.findByJournalEntryId(entryId).orElse(null);
         return JournalEntryResponse.from(entry, analysis);
     }
@@ -175,77 +192,53 @@ public class JournalService {
     @Transactional(readOnly = true)
     public JournalStatusResponse getStatus(UUID entryId, UUID userId) {
         JournalEntry entry = journalEntryRepository.findByIdAndUserId(entryId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Günlük girişi bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Journal entry not found"));
         return JournalStatusResponse.from(entry);
     }
 
+    // N+1 fix: batch-load analysis results instead of per-entry queries
     @Transactional(readOnly = true)
     public List<JournalEntryResponse> getByDate(UUID userId, LocalDate date) {
-        return journalEntryRepository
-                .findByUserIdAndEntryDateOrderByRecordedAtDesc(userId, date)
-                .stream()
-                .map(e -> {
-                    AnalysisResult analysis = analysisResultRepository
-                            .findByJournalEntryId(e.getId()).orElse(null);
-                    return JournalEntryResponse.from(e, analysis);
-                })
-                .toList();
+        List<JournalEntry> entries = journalEntryRepository
+                .findByUserIdAndEntryDateOrderByRecordedAtDesc(userId, date);
+        return mapWithAnalysis(entries);
     }
 
+    // uses Pageable instead of hardcoded findTop7
     @Transactional(readOnly = true)
     public List<JournalEntryResponse> getRecent(UUID userId, int limit) {
-        return journalEntryRepository
-                .findTop7ByUserIdOrderByRecordedAtDesc(userId)
+        List<JournalEntry> entries = journalEntryRepository
+                .findByUserIdOrderByRecordedAtDesc(userId, PageRequest.of(0, limit));
+        return mapWithAnalysis(entries);
+    }
+
+    // batch-loads analysis results in one query to eliminate N+1
+    private List<JournalEntryResponse> mapWithAnalysis(List<JournalEntry> entries) {
+        if (entries.isEmpty()) return List.of();
+
+        List<UUID> entryIds = entries.stream().map(JournalEntry::getId).toList();
+        Map<UUID, AnalysisResult> analysisMap = analysisResultRepository
+                .findByJournalEntryIdIn(entryIds)
                 .stream()
-                .limit(limit)
-                .map(e -> {
-                    AnalysisResult analysis = analysisResultRepository
-                            .findByJournalEntryId(e.getId()).orElse(null);
-                    return JournalEntryResponse.from(e, analysis);
-                })
+                .collect(Collectors.toMap(
+                        ar -> ar.getJournalEntry().getId(),
+                        Function.identity(),
+                        (a, b) -> a
+                ));
+
+        return entries.stream()
+                .map(e -> JournalEntryResponse.from(e, analysisMap.get(e.getId())))
                 .toList();
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
-
-    @Transactional
-    protected void updateStatus(UUID entryId, EntryStatus status) {
-        journalEntryRepository.findById(entryId).ifPresent(e -> {
-            e.setStatus(status);
-            journalEntryRepository.save(e);
-        });
-    }
-
-    @Transactional
-    protected void setAudioUrl(UUID entryId, String audioUrl) {
-        journalEntryRepository.findById(entryId).ifPresent(e -> {
-            e.setAudioUrl(audioUrl);
-            journalEntryRepository.save(e);
-        });
-    }
-
-    @Transactional
-    protected void clearAudioUrl(UUID entryId) {
-        journalEntryRepository.findById(entryId).ifPresent(e -> {
-            e.setAudioUrl(null);
-            journalEntryRepository.save(e);
-        });
-    }
-
-    @Transactional
-    protected void setTranscript(UUID entryId, String transcript) {
-        journalEntryRepository.findById(entryId).ifPresent(e -> {
-            e.setTranscript(transcript);
-            journalEntryRepository.save(e);
-        });
-    }
-
+    // runs inside @Async thread but saveAnalysisResult is called directly here
+    // which is fine since this method is called from the async context
     @Transactional
     protected void saveAnalysisResult(UUID entryId, UUID userId, AIAnalysisResponse analysis) {
         JournalEntry entry = journalEntryRepository.findById(entryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Entry bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Entry not found"));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         AnalysisResult result = AnalysisResult.builder()
                 .journalEntry(entry)
@@ -264,19 +257,25 @@ public class JournalService {
 
         analysisResultRepository.save(result);
 
-        // Domain event yayınla — GoalEventListener + TimeCapsuleEventListener dinler
+        // publish domain event for GoalEventListener + TimeCapsuleEventListener
         eventPublisher.publishEvent(new JournalAnalysisCompletedEvent(userId, entryId, analysis));
 
-        // User mood average güncelle
         updateUserMoodAverage(userId);
     }
 
     @Transactional
-    protected void markFailed(UUID entryId, String errorMessage) {
-        journalEntryRepository.findById(entryId).ifPresent(e -> {
-            e.setStatus(EntryStatus.FAILED);
-            e.setErrorMessage(errorMessage);
-            journalEntryRepository.save(e);
+    protected void updateUserMoodAverage(UUID userId) {
+        userRepository.findById(userId).ifPresent(user -> {
+            var results = analysisResultRepository
+                    .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
+                            userId, LocalDate.now().minusDays(30), LocalDate.now());
+            if (!results.isEmpty()) {
+                double avg = results.stream()
+                        .mapToDouble(r -> r.getMoodScore().doubleValue())
+                        .average().orElse(0.0);
+                user.setMoodScoreAvg(BigDecimal.valueOf(avg));
+                userRepository.save(user);
+            }
         });
     }
 
@@ -284,25 +283,5 @@ public class JournalService {
         return userRepository.findById(userId)
                 .map(User::getTimezone)
                 .orElse("UTC");
-    }
-
-    @Transactional
-    private void updateUserMoodAverage(UUID userId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            var results = analysisResultRepository
-                    .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
-                            userId,
-                            LocalDate.now().minusDays(30),
-                            LocalDate.now()
-                    );
-            if (!results.isEmpty()) {
-                double avg = results.stream()
-                        .mapToDouble(r -> r.getMoodScore().doubleValue())
-                        .average()
-                        .orElse(0.0);
-                user.setMoodScoreAvg(BigDecimal.valueOf(avg));
-                userRepository.save(user);
-            }
-        });
     }
 }

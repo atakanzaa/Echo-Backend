@@ -17,16 +17,19 @@ import java.util.UUID;
 @Component
 public class JwtTokenProvider {
 
+    private static final String ISSUER = "echo-backend";
+    private static final String AUDIENCE = "echo-ios";
+
     private final SecretKey signingKey;
-    private final long      accessTokenExpiryMs;
+    private final long accessTokenExpiryMs;
 
     public JwtTokenProvider(AppProperties props) {
         String secret = props.getJwt().getSecret();
         if (secret == null || secret.length() < 32) {
             throw new IllegalStateException(
-                "JWT_SECRET en az 32 karakter olmalı. Üret: openssl rand -base64 64");
+                "JWT_SECRET must be at least 32 characters. Generate with: openssl rand -base64 64");
         }
-        this.signingKey          = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiryMs = props.getJwt().getAccessTokenExpirySeconds() * 1000L;
     }
 
@@ -34,6 +37,8 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("email", email)
+                .issuer(ISSUER)
+                .audience().add(AUDIENCE).and()
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpiryMs))
                 .signWith(signingKey)
@@ -43,6 +48,8 @@ public class JwtTokenProvider {
     public Claims validateAndParseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(signingKey)
+                .requireIssuer(ISSUER)
+                .requireAudience(AUDIENCE)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -53,7 +60,7 @@ public class JwtTokenProvider {
             validateAndParseClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
-            log.debug("Geçersiz JWT token: {}", e.getMessage());
+            log.debug("Invalid JWT token: {}", e.getMessage());
             return false;
         }
     }

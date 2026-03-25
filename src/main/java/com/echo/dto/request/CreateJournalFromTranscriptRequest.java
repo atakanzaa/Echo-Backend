@@ -21,5 +21,5 @@ public record CreateJournalFromTranscriptRequest(
         @Positive(message = "Süre pozitif olmalıdır")
         int durationSeconds,
 
-        String idempotencyKey       // UUID — çift gönderim koruması (opsiyonel ama önerilir)
+        String idempotencyKey       // UUID — duplicate submission guard (optional but recommended)
 ) {}

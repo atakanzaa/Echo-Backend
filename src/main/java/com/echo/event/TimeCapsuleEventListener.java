@@ -33,7 +33,7 @@ public class TimeCapsuleEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAnalysisCompleted(JournalAnalysisCompletedEvent event) {
         if (!event.analysis().memoryWorthy()) {
-            return; // Sıradan giriş — kapsül oluşturma
+            return; // ordinary entry — no capsule needed
         }
 
         User user = userRepository.findById(event.userId()).orElse(null);

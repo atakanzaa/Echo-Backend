@@ -8,11 +8,9 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- * Synthesis sonuçları için Caffeine in-memory cache.
- * Cache key: userId:periodDays:lastEntryEpochSecond
- * Yeni journal entry geldiğinde key değişir → otomatik cache miss.
- */
+// Caffeine in-memory cache for synthesis results.
+// key format: userId:periodDays:lastEntryEpochSecond
+// new journal entry or coach message changes the key, causing auto cache miss.
 @Configuration
 public class CacheConfig {
 

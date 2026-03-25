@@ -33,7 +33,7 @@ public class CalendarService {
                 .collect(Collectors.toMap(
                         com.echo.domain.journal.AnalysisResult::getEntryDate,
                         r -> r,
-                        (a, b) -> a  // tek günde birden fazla giriş varsa ilkini al
+                        (a, b) -> a  // keep first entry if multiple per day
                 ));
 
         List<CalendarMonthResponse.CalendarDay> days = new ArrayList<>();

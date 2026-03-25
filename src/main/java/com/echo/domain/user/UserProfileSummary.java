@@ -20,11 +20,11 @@ public class UserProfileSummary {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    // Ham FK kolonu — UserMemoryService.getOrCreate() tarafından set edilir
+    // raw FK column — set by UserMemoryService.getOrCreate()
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    // İlişki okuma için — insertable/updatable=false, FK yönetimi userId üzerinden
+    // read-only relation — FK managed via userId column
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;

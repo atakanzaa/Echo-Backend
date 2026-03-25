@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -96,7 +97,7 @@ class JournalServiceTest {
         UUID userId = UUID.randomUUID();
         JournalEntry e1 = buildEntry(userId);
         JournalEntry e2 = buildEntry(userId);
-        given(journalEntryRepository.findTop7ByUserIdOrderByRecordedAtDesc(userId)).willReturn(List.of(e1, e2));
+        given(journalEntryRepository.findByUserIdOrderByRecordedAtDesc(eq(userId), any(Pageable.class))).willReturn(List.of(e1, e2));
         given(analysisResultRepository.findByJournalEntryId(any())).willReturn(Optional.empty());
 
         // when

@@ -63,7 +63,7 @@ public class AISynthesisService {
         AISynthesisRequest request = buildRequest(userId, periodDays);
         AISynthesisResponse response = router.synthesis().synthesize(request);
 
-        // Adaptive learning: her synthesis sonrası memory güncelle
+        // adaptive learning: update memory after each synthesis
         memoryService.updateFromSynthesis(userId, response);
 
         synthesisCache.put(cacheKey, response);
@@ -90,7 +90,7 @@ public class AISynthesisService {
     // ── Cache Key ─────────────────────────────────────────────────────────────
 
     private String buildCacheKey(UUID userId, int periodDays) {
-        // Son journal entry VEYA son coach mesajı zamanı → yeni konuşma = cache miss
+        // latest journal entry OR coach message time → new conversation = cache miss
         OffsetDateTime lastEntry = analysisRepo.findFirstByUserIdOrderByCreatedAtDesc(userId)
                 .map(AnalysisResult::getCreatedAt)
                 .orElse(OffsetDateTime.MIN);
@@ -127,7 +127,7 @@ public class AISynthesisService {
                 ))
                 .toList();
 
-        // Coach exchanges: son N günden USER-ASSISTANT çiftleri, max 20
+        // coach exchanges: USER-ASSISTANT pairs from last N days, max 20
         OffsetDateTime since = OffsetDateTime.now().minusDays(periodDays);
         List<CoachMessage> messages = coachRepo
                 .findByUserIdAndCreatedAtAfterOrderByCreatedAtAsc(userId, since);
@@ -174,7 +174,7 @@ public class AISynthesisService {
                         truncate(m.getContent(), 150),
                         truncate(next.getContent(), 150)
                 ));
-                i++;  // çifti atla, ikisini birden tükettik
+                i++;  // skip pair, consumed both
             }
         }
         return pairs;

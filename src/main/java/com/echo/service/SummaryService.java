@@ -75,7 +75,7 @@ public class SummaryService {
 
         double coverage = (results.size() * 100.0) / period.getDays();
 
-        // Günlük bazda mood verileri — Insights weekly chart ve emotion distribution
+        // daily mood data — for Insights weekly chart and emotion distribution
         List<SummaryResponse.DailyMoodScore> dailyMoodScores = results.stream()
                 .map(r -> new SummaryResponse.DailyMoodScore(
                         r.getEntryDate().toString(),

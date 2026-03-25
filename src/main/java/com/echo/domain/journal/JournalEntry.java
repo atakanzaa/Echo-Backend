@@ -50,6 +50,10 @@ public class JournalEntry {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    // Client-generated UUID — prevents duplicate submissions on retry / bad network
+    @Column(name = "idempotency_key", unique = true, length = 64)
+    private String idempotencyKey;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

@@ -79,7 +79,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException ex) {
-        // Statik kaynak (örn. eski S3 görsel URL'leri) bulunamadı — sessizce 404 döner
+        // static resource not found (e.g. old S3 image URLs) — silently return 404
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of("NOT_FOUND", "Kaynak bulunamadı"));
     }

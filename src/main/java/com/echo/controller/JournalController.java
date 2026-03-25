@@ -28,14 +28,16 @@ public class JournalController {
     private final JournalService journalService;
 
     /**
-     * Ses dosyasını yükle ve async pipeline başlat.
-     * Hemen 202 Accepted döner, client status polling yapar.
+     * Upload audio and start async pipeline.
+     * Returns 202 Accepted immediately; client polls /status for progress.
+     * Idempotency-Key header deduplicates retries on bad network.
      */
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<JournalEntryResponse> create(
             @RequestParam("audio")           MultipartFile audio,
             @RequestParam("recordedAt")      String recordedAt,
             @RequestParam("durationSeconds") int durationSeconds,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @AuthenticationPrincipal UserPrincipal principal) throws IOException {
 
         JournalEntryResponse response = journalService.createEntry(
@@ -43,16 +45,17 @@ public class JournalController {
                 audio.getBytes(),
                 audio.getOriginalFilename(),
                 OffsetDateTime.parse(recordedAt),
-                durationSeconds
+                durationSeconds,
+                idempotencyKey
         );
 
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 
     /**
-     * Transcript-only endpoint — iOS Apple Speech ile cihazda STT yapılmış transkripti alır.
-     * Audio sunucuya gelmez: gizlilik korunur, bant genişliği tasarrufu sağlanır.
-     * Doğrudan ANALYZING durumundan başlar.
+     * Transcript-only path — iOS on-device Apple Speech STT result.
+     * Audio never reaches the server: privacy-preserving, lower bandwidth.
+     * Starts directly at ANALYZING status.
      */
     @PostMapping(value = "/transcript", consumes = "application/json")
     public ResponseEntity<JournalEntryResponse> createFromTranscript(
@@ -63,7 +66,8 @@ public class JournalController {
                 principal.getId(),
                 request.transcript(),
                 OffsetDateTime.parse(request.recordedAt()),
-                request.durationSeconds()
+                request.durationSeconds(),
+                request.idempotencyKey()
         );
 
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);

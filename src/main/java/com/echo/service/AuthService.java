@@ -29,16 +29,20 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository        userRepository;
+    private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final JwtTokenProvider      jwtTokenProvider;
-    private final PasswordEncoder       passwordEncoder;
-    private final AppProperties         props;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordEncoder passwordEncoder;
+    private final AppProperties props;
+
+    // generic error message prevents user enumeration attacks
+    private static final String INVALID_CREDENTIALS = "Invalid email or password";
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("Bu e-posta adresi zaten kullanımda");
+            // same generic message to prevent email enumeration
+            throw new BadCredentialsException(INVALID_CREDENTIALS);
         }
 
         var user = User.builder()
@@ -55,13 +59,13 @@ public class AuthService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
         var user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BadCredentialsException("E-posta veya şifre hatalı"));
+                .orElseThrow(() -> new BadCredentialsException(INVALID_CREDENTIALS));
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new BadCredentialsException("E-posta veya şifre hatalı");
+            throw new BadCredentialsException(INVALID_CREDENTIALS);
         }
         if (!user.isActive()) {
-            throw new UnauthorizedException("Hesabınız devre dışı bırakılmış");
+            throw new UnauthorizedException("Account is disabled");
         }
 
         return buildAuthResponse(user);
@@ -71,13 +75,14 @@ public class AuthService {
     public AuthResponse refresh(String rawRefreshToken) {
         String hash = hashToken(rawRefreshToken);
         var stored = refreshTokenRepository.findByTokenHash(hash)
-                .orElseThrow(() -> new UnauthorizedException("Geçersiz refresh token"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
         if (stored.isExpired()) {
             refreshTokenRepository.delete(stored);
-            throw new UnauthorizedException("Refresh token süresi dolmuş, lütfen yeniden giriş yapın");
+            throw new UnauthorizedException("Refresh token expired, please login again");
         }
 
+        // rotate: delete old token, issue new pair
         refreshTokenRepository.delete(stored);
         return buildAuthResponse(stored.getUser());
     }
@@ -93,14 +98,12 @@ public class AuthService {
     public UserResponse me(UUID userId) {
         return userRepository.findById(userId)
                 .map(UserResponse::from)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
-
     private AuthResponse buildAuthResponse(User user) {
-        String accessToken  = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail());
-        String rawRefresh   = UUID.randomUUID().toString();
+        String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail());
+        String rawRefresh = UUID.randomUUID().toString();
         String hashedRefresh = hashToken(rawRefresh);
 
         long expirySeconds = props.getJwt().getRefreshTokenExpirySeconds();
@@ -125,7 +128,7 @@ public class AuthService {
             byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(hash);
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 bulunamadı", e);
+            throw new IllegalStateException("SHA-256 not available", e);
         }
     }
 }

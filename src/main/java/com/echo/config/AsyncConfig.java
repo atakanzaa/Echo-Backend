@@ -14,13 +14,8 @@ import java.util.concurrent.Executors;
 @EnableScheduling
 public class AsyncConfig implements AsyncConfigurer {
 
-    /**
-     * Java 21 virtual thread executor — I/O ağır async görevler için.
-     * ThreadPoolTaskExecutor'ın yerini alır: bounded pool + queue yerine
-     * her görev için ayrı, hafif virtual thread.
-     * AI API çağrıları (OpenAI, Gemini, Claude) bloklayıcı I/O olduğundan
-     * virtual thread'ler ile thread başına maliyet minimumdur.
-     */
+    // Java 21 virtual threads for I/O-bound async tasks (AI API calls).
+    // each task gets a lightweight virtual thread instead of pooled platform thread.
     @Bean(name = "journalProcessingExecutor")
     public Executor journalProcessingExecutor() {
         return Executors.newVirtualThreadPerTaskExecutor();

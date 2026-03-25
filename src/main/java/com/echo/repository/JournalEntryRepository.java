@@ -5,6 +5,8 @@ import com.echo.domain.journal.EntryStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import org.springframework.data.domain.Pageable;
+
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -17,7 +19,8 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     List<JournalEntry> findByUserIdAndEntryDateOrderByRecordedAtDesc(UUID userId, LocalDate date);
 
-    List<JournalEntry> findTop7ByUserIdOrderByRecordedAtDesc(UUID userId);
+    // replaces hardcoded findTop7 with dynamic limit via Pageable
+    List<JournalEntry> findByUserIdOrderByRecordedAtDesc(UUID userId, Pageable pageable);
 
     @Query(value = """
            SELECT * FROM journal_entries je
@@ -32,6 +35,8 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     boolean existsByUserIdAndEntryDate(UUID userId, LocalDate date);
 
+    Optional<JournalEntry> findByIdempotencyKey(String idempotencyKey);
+
     @Query(value = """
            SELECT * FROM journal_entries je
            WHERE je.user_id = :userId
@@ -40,7 +45,7 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
            """, nativeQuery = true)
     List<JournalEntry> findActiveByUserId(UUID userId);
 
-    /** Belirtilen süreden daha uzun süredir terminal olmayan durumda takılı entry'ler */
+    // entries stuck in non-terminal state longer than the given threshold
     @Query(value = """
            SELECT * FROM journal_entries je
            WHERE je.status IN ('uploading', 'transcribing', 'analyzing')

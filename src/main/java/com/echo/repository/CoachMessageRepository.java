@@ -2,6 +2,8 @@ package com.echo.repository;
 
 import com.echo.domain.coach.CoachMessage;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -11,9 +13,14 @@ import java.util.UUID;
 public interface CoachMessageRepository extends JpaRepository<CoachMessage, UUID> {
     List<CoachMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
 
-    /** Belirli tarihten sonraki mesajlar — synthesis için coach context toplamada kullanılır */
+    // messages after a given date, used for synthesis coach context
     List<CoachMessage> findByUserIdAndCreatedAtAfterOrderByCreatedAtAsc(UUID userId, OffsetDateTime since);
 
-    /** Son coach mesajı — synthesis cache key'ine dahil edilir (coach-only konuşmalar cache miss tetikler) */
+    // latest coach message, included in synthesis cache key
     Optional<CoachMessage> findFirstByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    // bulk delete all messages for a session (avoids N+1 load-then-delete)
+    @Modifying
+    @Query("DELETE FROM CoachMessage m WHERE m.session.id = :sessionId")
+    void deleteBySessionId(UUID sessionId);
 }

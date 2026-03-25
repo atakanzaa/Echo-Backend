@@ -22,13 +22,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         return userRepository.findByEmail(email)
                 .map(UserPrincipal::from)
-                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
     }
 
     @Transactional(readOnly = true)
     public UserPrincipal loadByUserId(UUID userId) {
         return userRepository.findById(userId)
                 .map(UserPrincipal::from)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
     }
 }

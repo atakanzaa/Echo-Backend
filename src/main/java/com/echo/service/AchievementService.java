@@ -34,7 +34,7 @@ public class AchievementService {
         // Streak hesapla
         updateStreak(user);
 
-        // Badge kontrolü
+        // badge check
         Set<String> earned = userAchievementRepository.findByUserId(userId)
                 .stream().map(UserAchievement::getBadgeKey).collect(Collectors.toSet());
 
@@ -95,7 +95,7 @@ public class AchievementService {
         LocalDate lastEntry = user.getLastEntryDate();
 
         if (lastEntry == null || lastEntry.isBefore(yesterday)) {
-            // Streak sıfırla (dün giriş yok)
+            // reset streak (no entry yesterday)
             if (lastEntry != null && !lastEntry.equals(yesterday)) {
                 user.setCurrentStreak(1);
             } else {
@@ -104,7 +104,7 @@ public class AchievementService {
         } else if (lastEntry.equals(yesterday)) {
             user.setCurrentStreak(user.getCurrentStreak() + 1);
         }
-        // Bugün zaten giriş yapılmışsa streak değişmez
+        // streak unchanged if already journaled today
 
         user.setLongestStreak(Math.max(user.getLongestStreak(), user.getCurrentStreak()));
         user.setLastEntryDate(today);

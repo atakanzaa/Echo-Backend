@@ -23,7 +23,7 @@ public record JournalEntryResponse(
                 entry.getId(),
                 entry.getRecordedAt() != null ? entry.getRecordedAt().toString() : null,
                 entry.getEntryDate() != null   ? entry.getEntryDate().toString()   : null,
-                null, // audioUrl gizlilik için dönmüyoruz
+                null, // audioUrl omitted for privacy
                 entry.getAudioDurationSeconds(),
                 entry.getTranscript(),
                 entry.getStatus().name().toLowerCase(),

@@ -4,10 +4,13 @@ import com.echo.dto.request.CreateCoachSessionRequest;
 import com.echo.dto.request.SendCoachMessageRequest;
 import com.echo.dto.response.CoachMessageResponse;
 import com.echo.dto.response.CoachSessionResponse;
+import com.echo.dto.response.PagedResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.CoachService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,8 +26,12 @@ public class CoachController {
     private final CoachService coachService;
 
     @GetMapping("/sessions")
-    public ResponseEntity<List<CoachSessionResponse>> getSessions(@AuthenticationPrincipal UserPrincipal p) {
-        return ResponseEntity.ok(coachService.getSessions(p.getId()));
+    public ResponseEntity<PagedResponse<CoachSessionResponse>> getSessions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UserPrincipal p) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(coachService.getSessions(p.getId(), pageable));
     }
 
     @PostMapping("/sessions")

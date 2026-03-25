@@ -45,7 +45,7 @@ public class User {
     @Builder.Default
     private String role = "USER";
 
-    // Streak & stats — AchievementService tarafından güncellenir
+    // streak & stats — updated by AchievementService
     @Column(name = "current_streak", nullable = false)
     @Builder.Default
     private int currentStreak = 0;
@@ -65,13 +65,13 @@ public class User {
     @Builder.Default
     private BigDecimal moodScoreAvg = BigDecimal.ZERO;
 
-    // Optimistic locking — streak/achievement race condition'larını önler
+    // optimistic locking — prevents streak/achievement race conditions
     @Version
     @Column(nullable = false)
     @Builder.Default
     private Long version = 0L;
 
-    // KVKK / Gizlilik onayları
+    // KVKK / privacy consent fields
     @Column(name = "ai_training_consent", nullable = false)
     @Builder.Default
     private boolean aiTrainingConsent = false;

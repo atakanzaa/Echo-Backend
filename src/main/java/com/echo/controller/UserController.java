@@ -24,7 +24,7 @@ public class UserController {
         return userRepository.findById(principal.getId())
                 .map(UserResponse::from)
                 .map(ResponseEntity::ok)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     @PatchMapping("/me")
@@ -39,6 +39,6 @@ public class UserController {
                     if (request.timezone() != null)    user.setTimezone(request.timezone());
                     return ResponseEntity.ok(UserResponse.from(userRepository.save(user)));
                 })
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 }

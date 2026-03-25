@@ -11,22 +11,26 @@ import com.echo.domain.user.User;
 import com.echo.dto.request.SendCoachMessageRequest;
 import com.echo.dto.response.CoachMessageResponse;
 import com.echo.dto.response.CoachSessionResponse;
+import com.echo.dto.response.PagedResponse;
 import com.echo.exception.ResourceNotFoundException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.CoachMessageRepository;
-import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.CoachSessionRepository;
 import com.echo.repository.GoalRepository;
+import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -36,178 +40,167 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CoachService {
 
-    private final CoachSessionRepository    coachSessionRepository;
-    private final CoachMessageRepository    coachMessageRepository;
-    private final UserRepository            userRepository;
-    private final AnalysisResultRepository  analysisResultRepository;
-    private final GoalRepository            goalRepository;
-    private final JournalEntryRepository    journalEntryRepository;
-    private final AIProviderRouter          router;
-    private final UserMemoryService         userMemoryService;
-    private final AISynthesisService        synthesisService;
+    private final CoachSessionRepository sessionRepo;
+    private final CoachMessageRepository messageRepo;
+    private final UserRepository userRepo;
+    private final AnalysisResultRepository analysisRepo;
+    private final GoalRepository goalRepo;
+    private final JournalEntryRepository journalEntryRepo;
+    private final AIProviderRouter router;
+    private final UserMemoryService userMemoryService;
+    private final AISynthesisService synthesisService;
 
     private static final int MAX_HISTORY = 10;
     private static final int CONTEXT_DAYS = 7;
-    private static final int MAX_TOPICS   = 5;
-    private static final int MAX_GOALS    = 5;
+    private static final int MAX_TOPICS = 5;
+    private static final int MAX_GOALS = 5;
 
     @Transactional(readOnly = true)
-    public List<CoachSessionResponse> getSessions(UUID userId) {
-        return coachSessionRepository.findByUserIdOrderByUpdatedAtDesc(userId)
-                .stream().map(CoachSessionResponse::from).toList();
+    public PagedResponse<CoachSessionResponse> getSessions(UUID userId, Pageable pageable) {
+        return PagedResponse.from(
+                sessionRepo.findByUserIdOrderByUpdatedAtDesc(userId, pageable),
+                CoachSessionResponse::from
+        );
     }
 
     @Transactional
     public CoachSessionResponse createSession(UUID userId, UUID journalEntryId) {
-        User user = userRepository.findById(userId).orElseThrow();
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         CoachSession session = CoachSession.builder().user(user).build();
 
-        // Journal konteksti — kullanıcı bir journal hakkında konuşmak istiyorsa
-        JournalEntry journalEntry = null;
+        // journal-linked session
         String journalContext = null;
         if (journalEntryId != null) {
-            journalEntry = journalEntryRepository.findById(journalEntryId).orElse(null);
+            JournalEntry journalEntry = journalEntryRepo.findById(journalEntryId).orElse(null);
             if (journalEntry != null) {
                 session.setJournalEntry(journalEntry);
                 journalContext = buildJournalContext(journalEntry);
+                String dateStr = journalEntry.getEntryDate()
+                        .format(DateTimeFormatter.ofPattern("d MMMM", new Locale("tr")));
+                session.setTitle(dateStr + " Journal Discussion");
             }
         }
 
-        // saveAndFlush: INSERT'i hemen çalıştırır → @CreationTimestamp null kalmaz
-        CoachSession saved = coachSessionRepository.saveAndFlush(session);
+        if (session.getTitle() == null) {
+            session.setTitle("New Conversation");
+        }
 
-        // Dinamik karşılama mesajı — journal konteksti varsa onu da ekle
+        CoachSession saved = sessionRepo.saveAndFlush(session);
+
+        // generate personalized welcome message
         String welcomeContent = generateWelcomeMessage(userId, user.getDisplayName(), journalContext);
         CoachMessage welcome = CoachMessage.builder()
                 .session(saved).user(user)
                 .role(MessageRole.ASSISTANT)
                 .content(welcomeContent)
                 .build();
-        coachMessageRepository.save(welcome);
+        messageRepo.save(welcome);
 
         return CoachSessionResponse.from(saved);
     }
 
-    /** Journal entry'den coach konteksti oluşturur (transkript + analiz özeti) */
     private String buildJournalContext(JournalEntry entry) {
         StringBuilder ctx = new StringBuilder();
-        ctx.append("[JOURNAL GİRİŞİ - ").append(entry.getEntryDate()).append("]\n");
+        ctx.append("[JOURNAL ENTRY - ").append(entry.getEntryDate()).append("]\n");
         if (entry.getTranscript() != null) {
-            // Çok uzun transkriptleri kısalt
             String transcript = entry.getTranscript();
             if (transcript.length() > 500) transcript = transcript.substring(0, 500) + "...";
-            ctx.append("Transkript: ").append(transcript).append("\n");
+            ctx.append("Transcript: ").append(transcript).append("\n");
         }
-        // Analiz sonuçlarını ekle
-        var analysisOpt = analysisResultRepository.findByJournalEntryId(entry.getId());
+        var analysisOpt = analysisRepo.findByJournalEntryId(entry.getId());
         if (analysisOpt.isPresent()) {
             AnalysisResult analysis = analysisOpt.get();
-            if (analysis.getSummary() != null) ctx.append("AI Özet: ").append(analysis.getSummary()).append("\n");
-            if (analysis.getMoodLabel() != null) ctx.append("Ruh hali: ").append(analysis.getMoodLabel()).append("\n");
-            if (analysis.getKeyEmotions() != null) ctx.append("Duygular: ").append(String.join(", ", analysis.getKeyEmotions())).append("\n");
+            if (analysis.getSummary() != null) ctx.append("AI Summary: ").append(analysis.getSummary()).append("\n");
+            if (analysis.getMoodLabel() != null) ctx.append("Mood: ").append(analysis.getMoodLabel()).append("\n");
+            if (analysis.getKeyEmotions() != null) ctx.append("Emotions: ").append(String.join(", ", analysis.getKeyEmotions())).append("\n");
         }
         return ctx.toString();
     }
 
-    /**
-     * AI'nın ürettiği kişiselleştirilmiş karşılama mesajı.
-     * Son 7 günün ruh hali, konuları ve aktif hedefleri bağlam olarak verilir.
-     * AI hata verirse sabit bir fallback mesajı döner — session oluşturma asla başarısız olmaz.
-     */
     private String generateWelcomeMessage(UUID userId, String displayName, String journalContext) {
         try {
-            String mood          = buildMoodContext(userId);
-            List<String> topics  = buildRecentTopics(userId);
-            List<String> goals   = buildActiveGoals(userId);
-            String name          = (displayName != null && !displayName.isBlank()) ? displayName : "Kullanıcı";
+            // single DB call for all context instead of 3 separate queries
+            UserContext ctx = buildUserContext(userId);
+            String name = (displayName != null && !displayName.isBlank()) ? displayName : "User";
 
             String prompt;
             if (journalContext != null) {
-                // Journal hakkında konuşma — AI'ya journal kontekstini ver
-                prompt = "[KULLANICI ADI]: " + name + "\n" +
+                prompt = "[USER NAME]: " + name + "\n" +
                         journalContext + "\n" +
-                        "[YENİ OTURUM - JOURNAL TARTIŞMASI] Kullanıcı bu günlük girişi hakkında konuşmak istiyor. " +
-                        "Adıyla karşıla, günlük girişinin içeriğine kısaca değin ve derinleştirici bir soru sor. " +
-                        "2-3 cümle. Doğrudan tüm transkripti tekrarlama.";
+                        "[NEW SESSION - JOURNAL DISCUSSION] The user wants to discuss this journal entry. " +
+                        "Greet by name, briefly reference the entry content, and ask a deepening question. " +
+                        "2-3 sentences. Do not repeat the entire transcript.";
             } else {
-                prompt = "[KULLANICI ADI]: " + name + "\n" +
-                        "[YENİ OTURUM] Kullanıcıyı adıyla, sıcak ve kısa (2 cümle) bir mesajla karşıla. " +
-                        "Bugün nasıl hissettiklerini veya ne paylaşmak istediklerini sor. " +
-                        "Bağlamı kullan ama doğrudan tekrarlama.";
+                prompt = "[USER NAME]: " + name + "\n" +
+                        "[NEW SESSION] Greet the user by name with a warm, short (2 sentences) message. " +
+                        "Ask how they feel today or what they'd like to share. " +
+                        "Use context but don't repeat it directly.";
             }
 
             var response = router.coach().chat(new AICoachRequest(
-                    prompt,
-                    List.of(),   // yeni oturum — geçmiş yok
+                    prompt, List.of(),
                     userMemoryService.getUserProfile(userId),
-                    mood,
-                    topics,
-                    goals
+                    ctx.moodContext(), ctx.topics(), ctx.goals(), name
             ));
             return response.content();
         } catch (Exception e) {
-            log.warn("Karşılama mesajı üretilemedi, varsayılan kullanılıyor: {}", e.getMessage());
-            String name = (displayName != null && !displayName.isBlank()) ? displayName : "Merhaba";
-            return name + ", bugün nasıl hissediyorsun? Seninle konuşmaya hazırım. 🌟";
+            log.warn("Welcome message generation failed, using fallback: {}", e.getMessage());
+            String name = (displayName != null && !displayName.isBlank()) ? displayName : "Hello";
+            return name + ", how are you feeling today? I'm here to talk.";
         }
     }
 
     @Transactional(readOnly = true)
     public List<CoachMessageResponse> getMessages(UUID sessionId, UUID userId) {
-        coachSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Oturum bulunamadı"));
-        return coachMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        sessionRepo.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+        return messageRepo.findBySessionIdOrderByCreatedAtAsc(sessionId)
                 .stream().map(CoachMessageResponse::from).toList();
     }
 
     @Transactional
     public List<CoachMessageResponse> sendMessage(UUID sessionId, UUID userId, SendCoachMessageRequest request) {
-        CoachSession session = coachSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Oturum bulunamadı"));
-        User user = userRepository.findById(userId).orElseThrow();
+        CoachSession session = sessionRepo.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+        User user = userRepo.findById(userId).orElseThrow();
 
-        // BUG DÜZELTMESİ #1: Kullanıcı mesajını kaydetmeden ÖNCE geçmişi yükle
-        // Böylece AI'ya gönderilen history'de bu mesaj bulunmaz (çift gönderim engellenir)
-        List<CoachMessage> allMessages = coachMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        // load history BEFORE saving user message to prevent duplicate in AI context
+        List<CoachMessage> allMessages = messageRepo.findBySessionIdOrderByCreatedAtAsc(sessionId);
         int size = allMessages.size();
 
-        // BUG DÜZELTMESİ #2: İLK 10 değil SON 10 mesajı al
+        // take LAST N messages, not first N
         List<CoachMessage> recentHistory = size > MAX_HISTORY
                 ? allMessages.subList(size - MAX_HISTORY, size)
                 : allMessages;
 
         List<AICoachRequest.ChatMessage> chatHistory = recentHistory.stream()
                 .map(m -> new AICoachRequest.ChatMessage(m.getRole().name().toLowerCase(), m.getContent()))
-                .collect(Collectors.toList());
+                .toList();
 
-        // Son 7 günün analiz verileriyle + aktif hedeflerle kullanıcı bağlamı oluştur
-        String moodContext      = buildMoodContext(userId);
-        List<String> topics     = buildRecentTopics(userId);
-        List<String> activeGoals = buildActiveGoals(userId);
+        // single DB call for all context (was 3 separate queries)
+        UserContext ctx = buildUserContext(userId);
 
-        // Kullanıcı mesajını kaydet
-        // saveAndFlush: INSERT'i hemen çalıştırır → @CreationTimestamp null kalmaz
+        // save user message
         CoachMessage userMsg = CoachMessage.builder()
                 .session(session).user(user).role(MessageRole.USER).content(request.content()).build();
-        coachMessageRepository.saveAndFlush(userMsg);
+        messageRepo.saveAndFlush(userMsg);
 
-        // AI çağrısı — userMessage ayrıca gönderilir, history'de YOK (çift gönderim yok)
+        // AI call
         var aiResponse = router.coach().chat(new AICoachRequest(
-                request.content(),
-                chatHistory,
+                request.content(), chatHistory,
                 userMemoryService.getUserProfile(userId),
-                moodContext,
-                topics,
-                activeGoals
+                ctx.moodContext(), ctx.topics(), ctx.goals(),
+                user.getDisplayName()
         ));
 
-        // AI yanıtını kaydet
-        // saveAndFlush: INSERT'i hemen çalıştırır → @CreationTimestamp null kalmaz
+        // save AI response
         CoachMessage assistantMsg = CoachMessage.builder()
                 .session(session).user(user).role(MessageRole.ASSISTANT).content(aiResponse.content()).build();
-        coachMessageRepository.saveAndFlush(assistantMsg);
+        messageRepo.saveAndFlush(assistantMsg);
 
-        // Her 5. mesaj alışverişinde (10 mesaj) profil belleğini async güncelle
+        // trigger profile synthesis every 5 exchanges (10 messages)
         int newTotal = size + 2;
         if (newTotal >= 10 && newTotal % 10 == 0) {
             synthesisService.synthesizeAsync(userId);
@@ -216,81 +209,69 @@ public class CoachService {
         return List.of(CoachMessageResponse.from(userMsg), CoachMessageResponse.from(assistantMsg));
     }
 
-    /**
-     * Oturumu soft-close eder ve kullanıcı profilini async günceller.
-     * iOS, kullanıcı coach ekranından ayrıldığında bu endpoint'i çağırmalıdır.
-     */
+    // soft-close session and trigger async profile update
     @Transactional
     public void endSession(UUID sessionId, UUID userId) {
-        CoachSession session = coachSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Oturum bulunamadı"));
+        CoachSession session = sessionRepo.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
         session.setActive(false);
-        coachSessionRepository.save(session);
-        synthesisService.synthesizeAsync(userId);  // non-blocking — profil güncellenir
+        sessionRepo.save(session);
+        synthesisService.synthesizeAsync(userId);
     }
 
+    // bulk delete messages instead of load-all-then-delete-one-by-one
     @Transactional
     public void deleteSession(UUID sessionId, UUID userId) {
-        CoachSession session = coachSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Oturum bulunamadı"));
-        coachMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
-                .forEach(coachMessageRepository::delete);
-        coachSessionRepository.delete(session);
+        CoachSession session = sessionRepo.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+        messageRepo.deleteBySessionId(sessionId);
+        sessionRepo.delete(session);
     }
 
-    // ── Bağlam yardımcıları ───────────────────────────────────────────────────
-
-    private String buildMoodContext(UUID userId) {
-        List<AnalysisResult> results = analysisResultRepository
+    // single query for mood context, topics, and goals (was 3 separate queries)
+    private UserContext buildUserContext(UUID userId) {
+        List<AnalysisResult> results = analysisRepo
                 .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
-                        userId,
-                        LocalDate.now().minusDays(CONTEXT_DAYS),
-                        LocalDate.now()
-                );
+                        userId, LocalDate.now().minusDays(CONTEXT_DAYS), LocalDate.now());
 
-        if (results.isEmpty()) return null;
+        String moodContext = null;
+        List<String> topics = List.of();
 
-        BigDecimal avg = results.stream()
-                .map(AnalysisResult::getMoodScore)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(results.size()), 3, RoundingMode.HALF_UP);
+        if (!results.isEmpty()) {
+            BigDecimal avg = results.stream()
+                    .map(AnalysisResult::getMoodScore)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(results.size()), 3, RoundingMode.HALF_UP);
 
-        String trend = results.size() >= 2
-                ? (results.get(0).getMoodScore().compareTo(results.get(results.size() - 1).getMoodScore()) > 0
-                    ? "yükseliş" : "düşüş")
-                : "stabil";
+            String trend = results.size() >= 2
+                    ? (results.get(0).getMoodScore().compareTo(results.get(results.size() - 1).getMoodScore()) > 0
+                    ? "improving" : "declining")
+                    : "stable";
 
-        return String.format("Son %d günde %d giriş. Ortalama ruh hali: %.2f/1.00, trend: %s.",
-                CONTEXT_DAYS, results.size(), avg, trend);
-    }
+            moodContext = String.format("Last %d days: %d entries. Average mood: %.2f/1.00, trend: %s.",
+                    CONTEXT_DAYS, results.size(), avg, trend);
 
-    private List<String> buildRecentTopics(UUID userId) {
-        List<AnalysisResult> results = analysisResultRepository
-                .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
-                        userId,
-                        LocalDate.now().minusDays(CONTEXT_DAYS),
-                        LocalDate.now()
-                );
+            topics = results.stream()
+                    .filter(r -> r.getTopics() != null)
+                    .flatMap(r -> r.getTopics().stream())
+                    .collect(Collectors.groupingBy(t -> t, Collectors.counting()))
+                    .entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                    .limit(MAX_TOPICS)
+                    .map(Map.Entry::getKey)
+                    .toList();
+        }
 
-        return results.stream()
-                .filter(r -> r.getTopics() != null)
-                .flatMap(r -> r.getTopics().stream())
-                .collect(Collectors.groupingBy(t -> t, Collectors.counting()))
-                .entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(MAX_TOPICS)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-    }
-
-    /** PENDING hedefler — coach'a bağlam olarak verilir, max 5 adet. */
-    private List<String> buildActiveGoals(UUID userId) {
-        return goalRepository.findByUserIdAndStatusOrderByDetectedAtDesc(userId, "PENDING")
+        List<String> goals = goalRepo.findByUserIdAndStatusOrderByDetectedAtDesc(userId, "PENDING")
                 .stream()
                 .limit(MAX_GOALS)
                 .map(g -> g.getTimeframe() != null && !g.getTimeframe().isBlank()
                         ? g.getTitle() + " (" + g.getTimeframe() + ")"
                         : g.getTitle())
-                .collect(Collectors.toList());
+                .toList();
+
+        return new UserContext(moodContext, topics, goals);
     }
+
+    private record UserContext(String moodContext, List<String> topics, List<String> goals) {}
 }

@@ -3,12 +3,11 @@ package com.echo;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.scheduling.annotation.EnableAsync;
 
 import com.echo.config.AppProperties;
 
+// @EnableAsync is on AsyncConfig — do not duplicate here
 @SpringBootApplication
-@EnableAsync
 @EnableConfigurationProperties(AppProperties.class)
 public class EchoApplication {
 

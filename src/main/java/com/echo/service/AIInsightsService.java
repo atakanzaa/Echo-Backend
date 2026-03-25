@@ -86,7 +86,7 @@ public class AIInsightsService {
         } catch (Exception e) {
             log.warn("AI suggestions oluşturulamadı, fallback kullanılıyor: {}", e.getMessage());
         }
-        // Fallback: kural tabanlı
+        // fallback: rule-based
         return buildFallbackSuggestions(results);
     }
 
