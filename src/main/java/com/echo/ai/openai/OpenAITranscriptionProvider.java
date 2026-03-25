@@ -4,8 +4,8 @@ import com.echo.ai.AITranscriptionProvider;
 import com.echo.config.AppProperties;
 import com.echo.exception.ServiceUnavailableException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -17,16 +17,21 @@ import java.util.Map;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OpenAITranscriptionProvider implements AITranscriptionProvider {
 
     private final AppProperties props;
     private final RestTemplate  restTemplate;
 
+    public OpenAITranscriptionProvider(AppProperties props,
+                                       @Qualifier("transcriptionRestTemplate") RestTemplate restTemplate) {
+        this.props        = props;
+        this.restTemplate = restTemplate;
+    }
+
     private static final String WHISPER_URL = "https://api.openai.com/v1/audio/transcriptions";
 
     @Override
-    @CircuitBreaker(name = "ai-provider", fallbackMethod = "transcribeFallback")
+    @CircuitBreaker(name = "openai-transcription", fallbackMethod = "transcribeFallback")
     public String transcribe(byte[] audioBytes, String filename) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new ByteArrayResource(audioBytes) {

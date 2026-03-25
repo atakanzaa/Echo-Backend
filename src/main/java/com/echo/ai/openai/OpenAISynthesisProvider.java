@@ -8,8 +8,8 @@ import com.echo.exception.ServiceUnavailableException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -20,16 +20,23 @@ import java.util.Map;
 /**
  * OpenAI tabanlı synthesis provider.
  * response_format: json_object ile yapılandırılmış JSON garantisi.
- * max_tokens=500, temperature=0.3 — tutarlı ve ekonomik çıktı.
+ * max_tokens=1000, temperature=0.3 — tutarlı ve ekonomik çıktı.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OpenAISynthesisProvider implements AISynthesisProvider {
 
     private final AppProperties props;
     private final ObjectMapper  objectMapper;
     private final RestTemplate  restTemplate;
+
+    public OpenAISynthesisProvider(AppProperties props,
+                                   ObjectMapper objectMapper,
+                                   @Qualifier("synthesisRestTemplate") RestTemplate restTemplate) {
+        this.props        = props;
+        this.objectMapper = objectMapper;
+        this.restTemplate = restTemplate;
+    }
 
     private static final String CHAT_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -70,7 +77,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
             """;
 
     @Override
-    @CircuitBreaker(name = "ai-provider", fallbackMethod = "synthesizeFallback")
+    @CircuitBreaker(name = "openai-synthesis", fallbackMethod = "synthesizeFallback")
     public AISynthesisResponse synthesize(AISynthesisRequest request) {
         Map<String, Object> requestBody = Map.of(
                 "model",           props.getAi().getOpenai().getAnalysisModel(),

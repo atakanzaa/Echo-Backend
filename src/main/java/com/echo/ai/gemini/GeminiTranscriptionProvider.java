@@ -4,8 +4,8 @@ import com.echo.ai.AITranscriptionProvider;
 import com.echo.config.AppProperties;
 import com.echo.exception.ServiceUnavailableException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -15,17 +15,27 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Gemini multimodal API ile ses → metin transkripsiyon.
- * Base64 kodlanmış ses verisi inline olarak gönderilir (~20MB sınır dahilinde).
- * iOS ses kayıtları için m4a → audio/aac, diğer formatlar otomatik algılanır.
+ * Gemini multimodal transcription: audio → text.
+ * Audio is sent as base64 inline data (~20MB limit).
+ * iOS m4a recordings map to audio/aac MIME type.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class GeminiTranscriptionProvider implements AITranscriptionProvider {
 
     private final AppProperties props;
     private final RestTemplate  restTemplate;
+    private final GeminiClient  geminiClient;
+    private final String        promptVersion;
+
+    public GeminiTranscriptionProvider(AppProperties props,
+                                       @Qualifier("transcriptionRestTemplate") RestTemplate restTemplate,
+                                       GeminiClient geminiClient) {
+        this.props         = props;
+        this.restTemplate  = restTemplate;
+        this.geminiClient  = geminiClient;
+        this.promptVersion = props.getPrompts().getTranscriptionVersion();
+    }
 
     private static final String GEMINI_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -38,11 +48,11 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
             "ogg",  "audio/ogg",
             "webm", "audio/webm",
             "flac", "audio/flac",
-            "m4a",  "audio/aac"   // iOS kayıt formatı — AAC container
+            "m4a",  "audio/aac"   // iOS recording format — AAC container
     );
 
     @Override
-    @CircuitBreaker(name = "ai-provider", fallbackMethod = "transcribeFallback")
+    @CircuitBreaker(name = "gemini-transcription", fallbackMethod = "transcribeFallback")
     public String transcribe(byte[] audioBytes, String filename) {
         String apiKey = props.getAi().getGemini().getApiKey();
         String model  = props.getAi().getGemini().getTranscribeModel();
@@ -51,7 +61,7 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
         String mimeType = resolveMimeType(filename);
         String base64   = Base64.getEncoder().encodeToString(audioBytes);
 
-        log.debug("Gemini transkripsiyon başlıyor: {} bytes, mimeType={}, model={}",
+        log.debug("Gemini transcription starting: {} bytes, mimeType={}, model={}",
                 audioBytes.length, mimeType, model);
 
         Map<String, Object> requestBody = Map.of(
@@ -68,29 +78,20 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
                 ))
         );
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<?, ?> responseBody = geminiClient.execute(
+                restTemplate, url, requestBody, "TRANSCRIPTION", promptVersion);
 
-        ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST,
-                new HttpEntity<>(requestBody, headers), Map.class
-        );
-
-        String transcript = extractGeminiContent(response.getBody());
-        log.debug("Gemini transkripsiyon tamamlandı: {} karakter", transcript.length());
+        String transcript = geminiClient.extractText(responseBody);
+        log.debug("Gemini transcription complete: {} chars", transcript.length());
         return transcript;
     }
 
     private String transcribeFallback(byte[] audioBytes, String filename, Throwable ex) {
-        log.error("Gemini transkripsiyon devre dışı (circuit open): {}", ex.getMessage());
-        throw new ServiceUnavailableException(
-                "Ses tanıma servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
+        log.error("Gemini transcription circuit open: {}", ex.getMessage());
+        throw new ServiceUnavailableException("Speech recognition service is temporarily unavailable.", ex);
     }
 
-    /**
-     * Dosya uzantısından MIME türünü çözer.
-     * Bilinmeyen format için audio/webm varsayılan — iOS WebRTC çıktısı.
-     */
+    /** Resolves MIME type from file extension. Defaults to audio/webm for unknown formats. */
     private String resolveMimeType(String filename) {
         if (filename == null || !filename.contains(".")) {
             return "audio/webm";
@@ -99,16 +100,4 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
         return MIME_MAP.getOrDefault(ext, "audio/webm");
     }
 
-    @SuppressWarnings("unchecked")
-    private String extractGeminiContent(Map<?, ?> body) {
-        List<?> candidates = (List<?>) body.get("candidates");
-        if (candidates == null || candidates.isEmpty()) {
-            throw new RuntimeException("Gemini boş candidates döndürdü: " + body);
-        }
-        Map<?, ?> candidate = (Map<?, ?>) candidates.get(0);
-        Map<?, ?> content   = (Map<?, ?>) candidate.get("content");
-        List<?> parts       = (List<?>) content.get("parts");
-        Map<?, ?> part      = (Map<?, ?>) parts.get(0);
-        return (String) part.get("text");
-    }
 }

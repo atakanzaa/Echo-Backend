@@ -6,8 +6,8 @@ import com.echo.exception.ServiceUnavailableException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -17,12 +17,19 @@ import java.util.Map;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OpenAIAnalysisProvider implements AIAnalysisProvider {
 
     private final AppProperties props;
     private final ObjectMapper  objectMapper;
     private final RestTemplate  restTemplate;
+
+    public OpenAIAnalysisProvider(AppProperties props,
+                                  ObjectMapper objectMapper,
+                                  @Qualifier("analysisRestTemplate") RestTemplate restTemplate) {
+        this.props        = props;
+        this.objectMapper = objectMapper;
+        this.restTemplate = restTemplate;
+    }
 
     private static final String CHAT_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -55,7 +62,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
             """;
 
     @Override
-    @CircuitBreaker(name = "ai-provider", fallbackMethod = "analyzeFallback")
+    @CircuitBreaker(name = "openai-analysis", fallbackMethod = "analyzeFallback")
     public AIAnalysisResponse analyze(AIAnalysisRequest request) {
         Map<String, Object> requestBody = Map.of(
                 "model", props.getAi().getOpenai().getAnalysisModel(),

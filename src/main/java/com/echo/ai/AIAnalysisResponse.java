@@ -16,7 +16,7 @@ public record AIAnalysisResponse(
         List<String> keyEmotions,
         String       energyLevel,
 
-        // Yeni: yapılandırılmış çıkarım alanları
+        // structured inference fields
         List<AIGoal>                goals,
         List<String>                insights,
         List<AIDetectedAchievement> achievements,
@@ -24,6 +24,6 @@ public record AIAnalysisResponse(
         boolean                     memoryWorthy,
         String                      memoryCapsuleTitle,
 
-        // Ham AI yanıtı — her zaman sonda
+        // raw AI response — always last
         String rawJson
 ) {}

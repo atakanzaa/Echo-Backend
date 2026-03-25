@@ -7,14 +7,12 @@ import com.echo.ai.gemini.GeminiAnalysisProvider;
 import com.echo.ai.gemini.GeminiCoachProvider;
 import com.echo.ai.gemini.GeminiSynthesisProvider;
 import com.echo.ai.gemini.GeminiTranscriptionProvider;
-import com.echo.ai.ollama.OllamaAnalysisProvider;
-import com.echo.ai.ollama.OllamaCoachProvider;
-import com.echo.ai.ollama.OllamaTranscriptionProvider;
 import com.echo.ai.openai.OpenAIAnalysisProvider;
 import com.echo.ai.openai.OpenAICoachProvider;
 import com.echo.ai.openai.OpenAISynthesisProvider;
 import com.echo.ai.openai.OpenAITranscriptionProvider;
 import com.echo.config.AppProperties;
+import com.echo.exception.ServiceUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -25,15 +23,15 @@ import java.util.concurrent.atomic.AtomicReference;
  * Runtime'da restart olmadan AI provider değiştirmeyi sağlar.
  * AtomicReference kullanımı thread-safe olduğu için concurrent request'lerde sorun olmaz.
  *
- * Desteklenen provider'lar: openai, gemini, claude, ollama (self-hosted)
- * Kullanım: POST /api/v1/admin/ai-config {"provider": "ollama"}
+ * Desteklenen provider'lar: openai, gemini, claude
+ * Fallback: primary CB açılırsa OpenAI'ya şeffaf geçiş yapar (kullanıcı 503 görmez).
+ * Kullanım: POST /api/v1/admin/ai-config {"provider": "gemini"}
  */
 @Slf4j
 @Component
 public class AIProviderRouter {
 
-    private static final Set<String> VALID_PROVIDERS =
-            Set.of("openai", "gemini", "claude", "ollama");
+    private static final Set<String> VALID_PROVIDERS = Set.of("openai", "gemini", "claude");
 
     private final AtomicReference<AITranscriptionProvider> transcriptionRef;
     private final AtomicReference<AIAnalysisProvider>      analysisRef;
@@ -41,77 +39,69 @@ public class AIProviderRouter {
     private final AtomicReference<AISynthesisProvider>     synthesisRef;
     private volatile String activeProvider;
 
-    // Tüm provider'lar Spring tarafından inject edilir
+    private final AppProperties props;
+
+    // All concrete provider beans — held for resolve() and fallback wiring
     private final OpenAITranscriptionProvider openAITranscription;
     private final OpenAIAnalysisProvider      openAIAnalysis;
     private final OpenAICoachProvider         openAICoach;
+    private final OpenAISynthesisProvider     openAISynthesis;
     private final GeminiTranscriptionProvider geminiTranscription;
     private final GeminiAnalysisProvider      geminiAnalysis;
     private final GeminiCoachProvider         geminiCoach;
+    private final GeminiSynthesisProvider     geminiSynthesis;
     private final ClaudeTranscriptionProvider claudeTranscription;
     private final ClaudeAnalysisProvider      claudeAnalysis;
     private final ClaudeCoachProvider         claudeCoach;
-    private final OllamaTranscriptionProvider ollamaTranscription;
-    private final OllamaAnalysisProvider      ollamaAnalysis;
-    private final OllamaCoachProvider         ollamaCoach;
-    private final GeminiSynthesisProvider     geminiSynthesis;
-    private final OpenAISynthesisProvider     openAISynthesis;
 
     public AIProviderRouter(AppProperties props,
                             OpenAITranscriptionProvider openAITranscription,
                             OpenAIAnalysisProvider openAIAnalysis,
                             OpenAICoachProvider openAICoach,
+                            OpenAISynthesisProvider openAISynthesis,
                             GeminiTranscriptionProvider geminiTranscription,
                             GeminiAnalysisProvider geminiAnalysis,
                             GeminiCoachProvider geminiCoach,
+                            GeminiSynthesisProvider geminiSynthesis,
                             ClaudeTranscriptionProvider claudeTranscription,
                             ClaudeAnalysisProvider claudeAnalysis,
-                            ClaudeCoachProvider claudeCoach,
-                            OllamaTranscriptionProvider ollamaTranscription,
-                            OllamaAnalysisProvider ollamaAnalysis,
-                            OllamaCoachProvider ollamaCoach,
-                            GeminiSynthesisProvider geminiSynthesis,
-                            OpenAISynthesisProvider openAISynthesis) {
+                            ClaudeCoachProvider claudeCoach) {
 
+        this.props               = props;
         this.openAITranscription = openAITranscription;
         this.openAIAnalysis      = openAIAnalysis;
         this.openAICoach         = openAICoach;
+        this.openAISynthesis     = openAISynthesis;
         this.geminiTranscription = geminiTranscription;
         this.geminiAnalysis      = geminiAnalysis;
         this.geminiCoach         = geminiCoach;
+        this.geminiSynthesis     = geminiSynthesis;
         this.claudeTranscription = claudeTranscription;
         this.claudeAnalysis      = claudeAnalysis;
         this.claudeCoach         = claudeCoach;
-        this.ollamaTranscription = ollamaTranscription;
-        this.ollamaAnalysis      = ollamaAnalysis;
-        this.ollamaCoach         = ollamaCoach;
-        this.geminiSynthesis     = geminiSynthesis;
-        this.openAISynthesis     = openAISynthesis;
 
-        String provider = props.getAi().getProvider();
+        String provider       = props.getAi().getProvider();
         this.activeProvider   = provider;
         this.transcriptionRef = new AtomicReference<>(resolveTranscription(provider));
         this.analysisRef      = new AtomicReference<>(resolveAnalysis(provider));
         this.coachRef         = new AtomicReference<>(resolveCoach(provider));
         this.synthesisRef     = new AtomicReference<>(resolveSynthesis(provider));
 
-        log.info("AI Provider başlatıldı: {}", provider);
+        log.info("AI Provider started: primary={} fallback={}", provider, props.getAi().getFallbackProvider());
     }
 
-    /**
-     * Tüm provider'ları atomik olarak değiştirir. Thread-safe.
-     */
+    /** Switches all providers atomically. Thread-safe. */
     public synchronized void switchProvider(String provider) {
         if (!VALID_PROVIDERS.contains(provider)) {
             throw new IllegalArgumentException(
-                    "Geçersiz provider: " + provider + ". Geçerli: openai, gemini, claude, ollama");
+                    "Invalid provider: " + provider + ". Valid: openai, gemini, claude");
         }
         transcriptionRef.set(resolveTranscription(provider));
         analysisRef.set(resolveAnalysis(provider));
         coachRef.set(resolveCoach(provider));
         synthesisRef.set(resolveSynthesis(provider));
         this.activeProvider = provider;
-        log.info("AI Provider değiştirildi: {}", provider);
+        log.info("AI Provider switched to: {}", provider);
     }
 
     public AITranscriptionProvider transcription() { return transcriptionRef.get(); }
@@ -120,47 +110,120 @@ public class AIProviderRouter {
     public AISynthesisProvider     synthesis()     { return synthesisRef.get(); }
     public String                  activeProvider(){ return activeProvider; }
 
-    // ── Private ─────────────────────────────────────────────────────────────
+    // ── Private resolve methods ──────────────────────────────────────────────
 
     private AITranscriptionProvider resolveTranscription(String provider) {
-        return switch (provider) {
+        AITranscriptionProvider primary = switch (provider) {
             case "openai" -> openAITranscription;
             case "gemini" -> geminiTranscription;
-            case "claude" -> claudeTranscription;  // UnsupportedOperationException fırlatır
-            case "ollama" -> ollamaTranscription;  // UnsupportedOperationException fırlatır — /transcript endpoint kullan
-            default       -> throw new IllegalArgumentException("Bilinmeyen provider: " + provider);
+            case "claude" -> claudeTranscription;  // throws UnsupportedOperationException
+            default       -> throw new IllegalArgumentException("Unknown provider: " + provider);
         };
+        return needsFallback(provider)
+                ? wrappedTranscription(primary, provider)
+                : primary;
     }
 
     private AIAnalysisProvider resolveAnalysis(String provider) {
-        return switch (provider) {
+        AIAnalysisProvider primary = switch (provider) {
             case "openai" -> openAIAnalysis;
             case "gemini" -> geminiAnalysis;
             case "claude" -> claudeAnalysis;
-            case "ollama" -> ollamaAnalysis;
-            default       -> throw new IllegalArgumentException("Bilinmeyen provider: " + provider);
+            default       -> throw new IllegalArgumentException("Unknown provider: " + provider);
         };
+        return needsFallback(provider)
+                ? wrappedAnalysis(primary, provider)
+                : primary;
     }
 
     private AICoachProvider resolveCoach(String provider) {
-        return switch (provider) {
+        AICoachProvider primary = switch (provider) {
             case "openai" -> openAICoach;
             case "gemini" -> geminiCoach;
             case "claude" -> claudeCoach;
-            case "ollama" -> ollamaCoach;
-            default       -> throw new IllegalArgumentException("Bilinmeyen provider: " + provider);
+            default       -> throw new IllegalArgumentException("Unknown provider: " + provider);
         };
+        return needsFallback(provider)
+                ? wrappedCoach(primary, provider)
+                : primary;
     }
 
     private AISynthesisProvider resolveSynthesis(String provider) {
-        return switch (provider) {
+        AISynthesisProvider primary = switch (provider) {
             case "openai" -> openAISynthesis;
             case "gemini" -> geminiSynthesis;
-            case "claude", "ollama" -> req -> {
+            case "claude" -> req -> {
                 throw new UnsupportedOperationException(
-                        "AI sentez için " + provider + " desteklenmiyor. openai veya gemini kullanın.");
+                        "Synthesis not supported for claude. Use openai or gemini.");
             };
-            default -> throw new IllegalArgumentException("Bilinmeyen provider: " + provider);
+            default -> throw new IllegalArgumentException("Unknown provider: " + provider);
+        };
+        return needsFallback(provider)
+                ? wrappedSynthesis(primary, provider)
+                : primary;
+    }
+
+    // ── Fallback helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Returns true when the active provider differs from the fallback provider.
+     * When primary == fallback (both openai), no wrapper is needed.
+     */
+    private boolean needsFallback(String provider) {
+        String fb = props.getAi().getFallbackProvider();
+        return fb != null && !fb.isBlank() && !fb.equalsIgnoreCase(provider);
+    }
+
+    /**
+     * Wraps a coach provider with transparent OpenAI fallback.
+     * The lambda is NOT a Spring bean — but primary.chat() goes through the Spring AOP proxy
+     * on the concrete bean, so the @CircuitBreaker on that bean is still active.
+     */
+    private AICoachProvider wrappedCoach(AICoachProvider primary, String primaryName) {
+        return request -> {
+            try {
+                return primary.chat(request);
+            } catch (ServiceUnavailableException e) {
+                log.warn("ai_fallback op=COACH primary={} switching_to=openai reason={}",
+                         primaryName, e.getMessage());
+                return openAICoach.chat(request);
+            }
+        };
+    }
+
+    private AIAnalysisProvider wrappedAnalysis(AIAnalysisProvider primary, String primaryName) {
+        return request -> {
+            try {
+                return primary.analyze(request);
+            } catch (ServiceUnavailableException e) {
+                log.warn("ai_fallback op=ANALYSIS primary={} switching_to=openai reason={}",
+                         primaryName, e.getMessage());
+                return openAIAnalysis.analyze(request);
+            }
+        };
+    }
+
+    private AISynthesisProvider wrappedSynthesis(AISynthesisProvider primary, String primaryName) {
+        return request -> {
+            try {
+                return primary.synthesize(request);
+            } catch (ServiceUnavailableException e) {
+                log.warn("ai_fallback op=SYNTHESIS primary={} switching_to=openai reason={}",
+                         primaryName, e.getMessage());
+                return openAISynthesis.synthesize(request);
+            }
+        };
+    }
+
+    private AITranscriptionProvider wrappedTranscription(AITranscriptionProvider primary, String primaryName) {
+        return (audioBytes, filename) -> {
+            try {
+                return primary.transcribe(audioBytes, filename);
+            } catch (ServiceUnavailableException e) {
+                log.warn("ai_fallback op=TRANSCRIPTION primary={} switching_to=openai reason={}",
+                         primaryName, e.getMessage());
+                return openAITranscription.transcribe(audioBytes, filename);
+            }
         };
     }
 }

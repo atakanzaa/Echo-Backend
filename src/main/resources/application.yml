@@ -45,7 +45,8 @@ app:
     refresh-token-expiry-seconds: ${JWT_REFRESH_EXPIRY:2592000}
 
   ai:
-    provider: ${AI_PROVIDER:openai}
+    provider: ${AI_PROVIDER:gemini}
+    fallback-provider: ${AI_FALLBACK_PROVIDER:openai}
     timeout-seconds: ${AI_TIMEOUT:60}
     openai:
       api-key:          ${OPENAI_API_KEY:}
@@ -61,14 +62,16 @@ app:
       api-key:          ${CLAUDE_API_KEY:}
       analysis-model:   ${CLAUDE_ANALYSIS_MODEL:claude-haiku-4-5-20251001}
       coach-model:      ${CLAUDE_COACH_MODEL:claude-haiku-4-5-20251001}
-    ollama:
-      base-url:         ${OLLAMA_BASE_URL:http://localhost:11434}
-      analysis-model:   ${OLLAMA_ANALYSIS_MODEL:llama3.1:8b}
-      coach-model:      ${OLLAMA_COACH_MODEL:llama3.1:8b}
 
   storage:
     type:       ${STORAGE_TYPE:local}
     local-path: ${LOCAL_STORAGE_PATH:/tmp/echo-audio}
+
+  prompts:
+    analysis-version:      ${PROMPT_ANALYSIS_VERSION:analysis-v4}
+    coach-version:         ${PROMPT_COACH_VERSION:coach-v5}
+    synthesis-version:     ${PROMPT_SYNTHESIS_VERSION:synthesis-v2}
+    transcription-version: ${PROMPT_TRANSCRIPTION_VERSION:transcription-v1}
 
 management:
   endpoints:
@@ -82,11 +85,98 @@ management:
 resilience4j:
   circuitbreaker:
     instances:
-      ai-provider:
-        sliding-window-size: 10
-        failure-rate-threshold: 50          # %50 hata oranında devre açılır
-        wait-duration-in-open-state: 30s    # 30s açık kalır, sonra half-open dener
+      # Analysis: background job, more tolerant of slowness
+      gemini-analysis:
+        sliding-window-size: 20
+        failure-rate-threshold: 40
+        slow-call-rate-threshold: 60
+        slow-call-duration-threshold: 30s
+        wait-duration-in-open-state: 45s
         permitted-number-of-calls-in-half-open-state: 3
-        slow-call-duration-threshold: 45s   # 45s'den uzun çağrılar "yavaş" sayılır
-        slow-call-rate-threshold: 80        # %80 yavaş çağrıda devre açılır
+        register-health-indicator: true
+
+      # Coach: user is waiting — fail faster
+      gemini-coach:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 70
+        slow-call-duration-threshold: 12s
+        wait-duration-in-open-state: 20s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+
+      # Synthesis: heaviest op, longest allowed duration
+      gemini-synthesis:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 60
+        slow-call-duration-threshold: 45s
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+
+      # Transcription: audio upload — medium tolerance
+      gemini-transcription:
+        sliding-window-size: 15
+        failure-rate-threshold: 40
+        slow-call-rate-threshold: 60
+        slow-call-duration-threshold: 20s
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+
+      # OpenAI: same thresholds as Gemini equivalents
+      openai-coach:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 70
+        slow-call-duration-threshold: 12s
+        wait-duration-in-open-state: 20s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+
+      openai-analysis:
+        sliding-window-size: 20
+        failure-rate-threshold: 40
+        slow-call-rate-threshold: 60
+        slow-call-duration-threshold: 25s
+        wait-duration-in-open-state: 45s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+
+      openai-synthesis:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 60
+        slow-call-duration-threshold: 40s
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+
+      openai-transcription:
+        sliding-window-size: 15
+        failure-rate-threshold: 40
+        slow-call-rate-threshold: 60
+        slow-call-duration-threshold: 22s
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+
+      # Claude
+      claude-coach:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 70
+        slow-call-duration-threshold: 12s
+        wait-duration-in-open-state: 20s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+
+      claude-analysis:
+        sliding-window-size: 20
+        failure-rate-threshold: 40
+        slow-call-rate-threshold: 60
+        slow-call-duration-threshold: 25s
+        wait-duration-in-open-state: 45s
+        permitted-number-of-calls-in-half-open-state: 3
         register-health-indicator: true

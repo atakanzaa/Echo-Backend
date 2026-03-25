@@ -6,8 +6,8 @@ import com.echo.ai.AICoachResponse;
 import com.echo.config.AppProperties;
 import com.echo.exception.ServiceUnavailableException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -18,11 +18,16 @@ import java.util.Map;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ClaudeCoachProvider implements AICoachProvider {
 
     private final AppProperties props;
     private final RestTemplate  restTemplate;
+
+    public ClaudeCoachProvider(AppProperties props,
+                               @Qualifier("coachRestTemplate") RestTemplate restTemplate) {
+        this.props        = props;
+        this.restTemplate = restTemplate;
+    }
 
     private static final String CLAUDE_URL    = "https://api.anthropic.com/v1/messages";
     private static final String ANTHROPIC_VER = "2023-06-01";
@@ -50,7 +55,7 @@ public class ClaudeCoachProvider implements AICoachProvider {
     }
 
     @Override
-    @CircuitBreaker(name = "ai-provider", fallbackMethod = "chatFallback")
+    @CircuitBreaker(name = "claude-coach", fallbackMethod = "chatFallback")
     public AICoachResponse chat(AICoachRequest request) {
         List<Map<String, String>> messages = new ArrayList<>();
         for (var msg : request.history()) {

@@ -17,6 +17,7 @@ public class AppProperties {
     @Valid private Jwt jwt = new Jwt();
     @Valid private AI ai = new AI();
     @Valid private Storage storage = new Storage();
+    private Prompts prompts = new Prompts();
 
     @Getter @Setter
     public static class Jwt {
@@ -28,46 +29,49 @@ public class AppProperties {
     @Getter @Setter
     public static class AI {
         @NotBlank private String provider = "openai";
+        private String fallbackProvider = "openai";
         @Positive private int timeoutSeconds = 60;
-        private OpenAI  openai  = new OpenAI();
-        private Gemini  gemini  = new Gemini();
-        private Claude  claude  = new Claude();
-        private Ollama  ollama  = new Ollama();
+        private OpenAI openai = new OpenAI();
+        private Gemini gemini = new Gemini();
+        private Claude claude = new Claude();
 
         @Getter @Setter
         public static class OpenAI {
             private String apiKey;
             private String transcribeModel = "whisper-1";
-            private String analysisModel   = "gpt-4o-mini";
-            private String coachModel      = "gpt-4o-mini";
+            private String analysisModel = "gpt-4o-mini";
+            private String coachModel = "gpt-4o-mini";
         }
 
         @Getter @Setter
         public static class Gemini {
             private String apiKey;
-            private String analysisModel   = "gemini-2.5-flash";
-            private String coachModel      = "gemini-2.5-flash";
-            private String transcribeModel = "gemini-2.5-flash";  // Multimodal ses transkripsiyon
+            private String analysisModel = "gemini-2.5-flash";
+            private String coachModel = "gemini-2.5-flash";
+            // multimodal audio transcription model
+            private String transcribeModel = "gemini-2.5-flash";
         }
 
         @Getter @Setter
         public static class Claude {
             private String apiKey;
             private String analysisModel = "claude-haiku-4-5-20251001";
-            private String coachModel    = "claude-haiku-4-5-20251001";
+            private String coachModel = "claude-haiku-4-5-20251001";
         }
 
-        @Getter @Setter
-        public static class Ollama {
-            private String baseUrl       = "http://localhost:11434";
-            private String analysisModel = "llama3.1:8b";
-            private String coachModel    = "llama3.1:8b";
-        }
     }
 
     @Getter @Setter
     public static class Storage {
-        private String type      = "local";
+        private String type = "local";
         private String localPath = "/tmp/echo-audio";
+    }
+
+    @Getter @Setter
+    public static class Prompts {
+        private String analysisVersion      = "analysis-v4";
+        private String coachVersion         = "coach-v5";
+        private String synthesisVersion     = "synthesis-v2";
+        private String transcriptionVersion = "transcription-v1";
     }
 }

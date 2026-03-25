@@ -8,8 +8,8 @@ import com.echo.exception.ServiceUnavailableException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -18,19 +18,30 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Gemini Flash tabanlı synthesis provider.
- * Kullanıcının tüm veri kaynaklarını (journal, coach, goals, memory) analiz ederek
- * Summary / Insights / Achievements için tek bir AI çağrısında sentez üretir.
- * maxOutputTokens=500, temperature=0.3, responseSchema ile yapılandırılmış JSON garantisi.
+ * Gemini Flash synthesis provider.
+ * Synthesizes journal entries, coach exchanges, goals, and memory into
+ * a single structured AI response (summary, insights, achievements).
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class GeminiSynthesisProvider implements AISynthesisProvider {
 
     private final AppProperties props;
     private final ObjectMapper  objectMapper;
     private final RestTemplate  restTemplate;
+    private final GeminiClient  geminiClient;
+    private final String        promptVersion;
+
+    public GeminiSynthesisProvider(AppProperties props,
+                                   ObjectMapper objectMapper,
+                                   @Qualifier("synthesisRestTemplate") RestTemplate restTemplate,
+                                   GeminiClient geminiClient) {
+        this.props         = props;
+        this.objectMapper  = objectMapper;
+        this.restTemplate  = restTemplate;
+        this.geminiClient  = geminiClient;
+        this.promptVersion = props.getPrompts().getSynthesisVersion();
+    }
 
     private static final String GEMINI_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -73,7 +84,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
             """;
 
     @Override
-    @CircuitBreaker(name = "ai-provider", fallbackMethod = "synthesizeFallback")
+    @CircuitBreaker(name = "gemini-synthesis", fallbackMethod = "synthesizeFallback")
     public AISynthesisResponse synthesize(AISynthesisRequest request) {
         String model  = props.getAi().getGemini().getAnalysisModel();
         String apiKey = props.getAi().getGemini().getApiKey();
@@ -89,28 +100,21 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
                 )),
                 "generationConfig", Map.of(
                         "responseMimeType", "application/json",  // saf JSON garantisi — prefix/markdown yok
-                        "maxOutputTokens",  4000,                // Türkçe synthesis JSON 2000'i de aşıyor
+                        "maxOutputTokens",  4000,                // Turkish synthesis JSON can exceed 2000 tokens
                         "temperature",      0.3
                 )
         );
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<?, ?> responseBody = geminiClient.execute(
+                restTemplate, url, requestBody, "SYNTHESIS", promptVersion);
 
-        ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST,
-                new HttpEntity<>(requestBody, headers), Map.class
-        );
-
-        String json = extractGeminiContent(response.getBody());
-        log.debug("Gemini synthesis yanıtı alındı, parse ediliyor");
+        String json = geminiClient.extractText(responseBody);
         return parseResponse(json);
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
-        log.error("Gemini synthesis devre dışı (circuit open): {}", ex.getMessage());
-        throw new ServiceUnavailableException(
-                "AI sentez servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
+        log.error("Gemini synthesis circuit open: {}", ex.getMessage());
+        throw new ServiceUnavailableException("AI synthesis service is temporarily unavailable.", ex);
     }
 
     private String buildUserMessage(AISynthesisRequest req) {
@@ -164,20 +168,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private String extractGeminiContent(Map<?, ?> body) {
-        List<?> candidates = (List<?>) body.get("candidates");
-        if (candidates == null || candidates.isEmpty()) {
-            throw new RuntimeException("Gemini boş candidates döndürdü: " + body);
-        }
-        Map<?, ?> candidate = (Map<?, ?>) candidates.get(0);
-        Map<?, ?> content   = (Map<?, ?>) candidate.get("content");
-        List<?> parts       = (List<?>) content.get("parts");
-        Map<?, ?> part      = (Map<?, ?>) parts.get(0);
-        return (String) part.get("text");
-    }
-
-    /** Markdown kod bloğu, backtick veya fazladan metin varsa temizler — ilk { ile son } arasını alır. */
+    /** Strips markdown code blocks and extra text — extracts first { to last } */
     private String extractJson(String raw) {
         int start = raw.indexOf('{');
         int end   = raw.lastIndexOf('}');
@@ -216,7 +207,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("Gemini synthesis yanıtı parse edilemedi: " + json, e);
+            throw new RuntimeException("Failed to parse Gemini synthesis response: " + json, e);
         }
     }
 
@@ -227,7 +218,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
             return objectMapper.convertValue(arr,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, AISynthesisResponse.Suggestion.class));
         } catch (Exception e) {
-            log.warn("Suggestions parse edilemedi: {}", e.getMessage());
+            log.warn("Could not parse suggestions: {}", e.getMessage());
             return List.of();
         }
     }

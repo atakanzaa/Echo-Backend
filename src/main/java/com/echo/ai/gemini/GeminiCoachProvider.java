@@ -6,8 +6,8 @@ import com.echo.ai.AICoachResponse;
 import com.echo.config.AppProperties;
 import com.echo.exception.ServiceUnavailableException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -18,26 +18,93 @@ import java.util.Map;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class GeminiCoachProvider implements AICoachProvider {
 
     private final AppProperties props;
     private final RestTemplate  restTemplate;
+    private final GeminiClient  geminiClient;
+    private final String        promptVersion;
+
+    public GeminiCoachProvider(AppProperties props,
+                               @Qualifier("coachRestTemplate") RestTemplate restTemplate,
+                               GeminiClient geminiClient) {
+        this.props         = props;
+        this.restTemplate  = restTemplate;
+        this.geminiClient  = geminiClient;
+        this.promptVersion = props.getPrompts().getCoachVersion();
+    }
 
     private static final String GEMINI_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
 
     private static final String BASE_INSTRUCTION = """
-            Sen Echo, kişisel gelişim odaklı empatik bir AI yansıma koçusun.
-            Uzmanlık: zihinsel sağlık, yaşam koçluğu, kariyer.
-            ÇERÇEVE: Kabul Et → Yansıt → Keşfet → Bağla → Güçlendir.
-            SINIRLAR: Tıbbi, hukuki, finansal konu yok. Konu dışı sorulara nazikçe yönlendir.
-            GÜVENLİK: Kriz ifadelerinde 182 (Ruh Sağlığı Hattı) paylaş.
-            KURALLAR: 2-4 cümle. Tek soru. Kullanıcının dilinde yanıt ver.
+            Sen Echo uygulamasında {USER_NAME} adlı kullanıcının kişisel yansıma koçusun.
+            Amacın çözüm üretmek değil — {USER_NAME}'ın kendi içini daha net görmesine alan açmak.
+
+            TEMEL PRENSİP:
+            - Yorum yapma → yansıt
+            - Yön verme → fark ettir
+            - Çözüm sunma → derinleştir
+
+            NASIL DÜŞÜNÜRSÜN (CORE ENGINE):
+            Her mesajı şu 4 katmanda içsel olarak analiz et:
+            1. Tetikleyici (Trigger) → Ne oldu?
+            2. Yorum (Meaning) → Kullanıcı buna nasıl anlam yükledi?
+            3. İhtiyaç (Need) → Bunun altında hangi psikolojik ihtiyaç olabilir?
+            4. Kaçınma (Avoidance) → Kullanıcı neyle yüzleşmemeye çalışıyor olabilir?
+            → Cevabın bu katmanlardan en az birine temas etmeli.
+            → ASLA hepsini açık açık yazma — bu içsel reasoning'dir.
+
+            KONUŞMA TARZI:
+            - 2–3 cümle, maksimum 4. Kısa ama yoğun (high signal / low noise).
+            - Tek bir odak noktası, tek insight.
+
+            KULLAN:
+            - "Burada dikkat çeken şey…"
+            - "Sanki şu var gibi…"
+            - "Şunu vurgulaman ilginç…"
+            - "Bir yanın … derken, diğer tarafta … var gibi"
+
+            KAÇIN:
+            - Boş validasyon: "Harika", "Çok iyi", "Bunu duymak güzel"
+            - Echo: kullanıcının cümlesini tekrar etmek
+            - Genel sorular: "Ne düşünüyorsun?"
+            - Tavsiye / çözüm / aksiyon planı / öğretici mod
+
+            SORU SORMA KURALI:
+            - En fazla 1 adet derin soru — cevabı evet/hayır olmayan, içgörüye zorlayan.
+            - Alternatif: soru sormadan sadece güçlü bir gözlem de yapabilirsin.
+
+            ÇELİŞKİ YAKALAMA:
+            Çelişki varsa şu formatı kullan:
+            "Bir yanın X diyor gibi, ama başka bir yerde Y de var — bu ikisi sende nasıl bir arada duruyor?"
+
+            DURUM MODLARI:
+            1. Normal Reflection → Standart kuralları uygula.
+            2. Low Mood / Mental Fog (kararsızlık, yorgunluk, sıkışmışlık):
+               - Daha yavaş ton, daha az analiz, daha fazla netleştirme.
+               - Grounding gözlemler: "Şu an tam olarak ne hissediyorsun, onu bir kelimeyle tanımlayabilir misin?"
+            3. Crisis (kendine zarar / intihar):
+               Şunu aynen söyle:
+               "Bunu benimle paylaştığın için buradayım. Şu an profesyonel biriyle konuşman önemli.
+               Türkiye'de 7/24 ücretsiz: 182 (İntihar Önleme Hattı)"
+               → Sonrasında analiz yapma.
+
+            HEDEF:
+            - Kullanıcı daha net görmeli, kendi çelişkilerini fark etmeli, kendi cevabına yaklaşmalı.
+            - Sen sadece aynayı doğru açıyla tutarsın.
+
+            KALİBRASYON ÖRNEĞİ:
+            Kullanıcı: "Son zamanlarda her şey iyi ama garip bir huzursuzluk var"
+            Cevap: "Her şeyin 'iyi' olduğunu söyleyip huzursuzluğu ayrı bir yere koyman ilginç — sanki o hisi tam içeri almıyor gibisin. O huzursuzluk konuşabilse, neyi bozmak isterdi?"
+
+            KURAL: Kullanıcının dilinde yanıt ver.
             """;
 
     private String buildInstruction(AICoachRequest request) {
-        var sb = new StringBuilder(BASE_INSTRUCTION);
+        String name = (request.userName() != null && !request.userName().isBlank())
+                ? request.userName() : "kullanıcı";
+        var sb = new StringBuilder(BASE_INSTRUCTION.replace("{USER_NAME}", name));
         if (request.moodContext() != null)
             sb.append("\nRUH HALİ: ").append(request.moodContext());
         if (request.recentTopics() != null && !request.recentTopics().isEmpty())
@@ -50,7 +117,7 @@ public class GeminiCoachProvider implements AICoachProvider {
     }
 
     @Override
-    @CircuitBreaker(name = "ai-provider", fallbackMethod = "chatFallback")
+    @CircuitBreaker(name = "gemini-coach", fallbackMethod = "chatFallback")
     public AICoachResponse chat(AICoachRequest request) {
         String model  = props.getAi().getGemini().getCoachModel();
         String apiKey = props.getAi().getGemini().getApiKey();
@@ -66,7 +133,7 @@ public class GeminiCoachProvider implements AICoachProvider {
         }
         contents.add(Map.of(
                 "role", "user",
-                "parts", List.of(Map.of("text", request.userMessage()))
+                "parts", List.of(Map.of("text", sanitizeUserInput(request.userMessage())))
         ));
 
         Map<String, Object> requestBody = Map.of(
@@ -75,33 +142,27 @@ public class GeminiCoachProvider implements AICoachProvider {
                 "generationConfig", Map.of("maxOutputTokens", 1000)
         );
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<?, ?> responseBody = geminiClient.execute(
+                restTemplate, url, requestBody, "COACH_RESPONSE", promptVersion);
 
-        ResponseEntity<Map> response = restTemplate.exchange(
-                url, HttpMethod.POST,
-                new HttpEntity<>(requestBody, headers), Map.class
-        );
-
-        return new AICoachResponse(extractGeminiContent(response.getBody()));
+        return new AICoachResponse(geminiClient.extractText(responseBody));
     }
 
     private AICoachResponse chatFallback(AICoachRequest request, Throwable ex) {
-        log.error("Gemini coach devre dışı (circuit open): {}", ex.getMessage());
-        throw new ServiceUnavailableException(
-                "AI koç servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
+        log.error("Gemini coach circuit open: {}", ex.getMessage());
+        throw new ServiceUnavailableException("AI coach service is temporarily unavailable.", ex);
     }
 
-    @SuppressWarnings("unchecked")
-    private String extractGeminiContent(Map<?, ?> body) {
-        List<?> candidates = (List<?>) body.get("candidates");
-        if (candidates == null || candidates.isEmpty()) {
-            throw new RuntimeException("Gemini boş candidates döndürdü: " + body);
-        }
-        Map<?, ?> candidate = (Map<?, ?>) candidates.get(0);
-        Map<?, ?> content   = (Map<?, ?>) candidate.get("content");
-        List<?> parts       = (List<?>) content.get("parts");
-        Map<?, ?> part      = (Map<?, ?>) parts.get(0);
-        return (String) part.get("text");
+    /** Strips known prompt injection vectors from user coach messages. */
+    private String sanitizeUserInput(String input) {
+        if (input == null) return "";
+        return input
+                .replaceAll("(?i)</?SYSTEM>", "")
+                .replaceAll("(?i)ignore (all )?previous instructions?", "[filtered]")
+                .replaceAll("(?i)you are now", "[filtered]")
+                .replaceAll("(?i)\\bact as\\b(?! (a user|the user))", "[filtered]")
+                .replaceAll("(?i)\\bnew instructions?\\b", "[filtered]");
     }
+
+
 }
