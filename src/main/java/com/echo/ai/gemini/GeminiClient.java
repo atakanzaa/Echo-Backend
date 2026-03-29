@@ -196,6 +196,11 @@ public class GeminiClient {
         if (text == null || text.isBlank()) {
             throw new RuntimeException("Gemini returned blank text, finishReason=" + finishReason);
         }
+        // MAX_TOKENS means output was truncated — log loudly so it's easy to diagnose
+        if ("MAX_TOKENS".equals(finishReason)) {
+            log.warn("Gemini response truncated (MAX_TOKENS) — increase maxOutputTokens or disable thinking. " +
+                     "text_length={}", text.length());
+        }
         return text;
     }
 }

@@ -93,8 +93,11 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
                 "generationConfig", Map.of(
                         "responseMimeType", "application/json",
                         "responseSchema",   buildAnalysisSchema(),
-                        "maxOutputTokens",  1024,
-                        "temperature",      0.2
+                        "maxOutputTokens",  2048,
+                        "temperature",      0.2,
+                        // Disable thinking for structured JSON — thinking budget competes with
+                        // output tokens on Gemini 2.5 Flash, causing truncated responses
+                        "thinkingConfig",   Map.of("thinkingBudget", 0)
                 )
         );
 

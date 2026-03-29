@@ -99,9 +99,11 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
                         ))
                 )),
                 "generationConfig", Map.of(
-                        "responseMimeType", "application/json",  // saf JSON garantisi — prefix/markdown yok
-                        "maxOutputTokens",  4000,                // Turkish synthesis JSON can exceed 2000 tokens
-                        "temperature",      0.3
+                        "responseMimeType", "application/json",
+                        "maxOutputTokens",  4096,
+                        "temperature",      0.3,
+                        // Disable thinking — same token-budget issue as analysis
+                        "thinkingConfig",   Map.of("thinkingBudget", 0)
                 )
         );
 
