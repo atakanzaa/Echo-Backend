@@ -48,7 +48,7 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
             "ogg",  "audio/ogg",
             "webm", "audio/webm",
             "flac", "audio/flac",
-            "m4a",  "audio/aac"   // iOS recording format — AAC container
+            "m4a",  "audio/mp4"   // .m4a = MP4 container with AAC codec, NOT raw AAC bitstream
     );
 
     @Override
@@ -61,7 +61,7 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
         String mimeType = resolveMimeType(filename);
         String base64   = Base64.getEncoder().encodeToString(audioBytes);
 
-        log.debug("Gemini transcription starting: {} bytes, mimeType={}, model={}",
+        log.info("Gemini transcription starting: bytes={} mimeType={} model={}",
                 audioBytes.length, mimeType, model);
 
         Map<String, Object> requestBody = Map.of(

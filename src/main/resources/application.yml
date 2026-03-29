@@ -46,7 +46,7 @@ app:
 
   ai:
     provider: ${AI_PROVIDER:gemini}
-    fallback-provider: ${AI_FALLBACK_PROVIDER:openai}
+    fallback-provider: ${AI_FALLBACK_PROVIDER:}
     timeout-seconds: ${AI_TIMEOUT:60}
     openai:
       api-key:          ${OPENAI_API_KEY:}

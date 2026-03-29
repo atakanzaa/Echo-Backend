@@ -109,12 +109,22 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
                 restTemplate, url, requestBody, "SYNTHESIS", promptVersion);
 
         String json = geminiClient.extractText(responseBody);
-        return parseResponse(json);
+        try {
+            return parseResponse(json);
+        } catch (Exception e) {
+            // Parse failure is a code bug, not a service outage — do not trip CB.
+            log.error("synthesis_parse_error raw_json={} cause={}", json, e.getMessage(), e);
+            return emptyResponse(json);
+        }
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
-        log.error("Gemini synthesis circuit open: {}", ex.getMessage());
+        log.error("Gemini synthesis unavailable: {}", ex.getMessage());
         throw new ServiceUnavailableException("AI synthesis service is temporarily unavailable.", ex);
+    }
+
+    private AISynthesisResponse emptyResponse(String rawJson) {
+        return new AISynthesisResponse(null, List.of(), null, 0, null, null, List.of(), null, null, rawJson);
     }
 
     private String buildUserMessage(AISynthesisRequest req) {
@@ -207,7 +217,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Gemini synthesis response: " + json, e);
+            throw new RuntimeException("Failed to parse Gemini synthesis response: " + json + " | cause: " + e.getMessage(), e);
         }
     }
 

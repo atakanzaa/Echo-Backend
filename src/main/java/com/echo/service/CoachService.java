@@ -200,7 +200,7 @@ public class CoachService {
                 .session(session).user(user).role(MessageRole.ASSISTANT).content(aiResponse.content()).build();
         messageRepo.saveAndFlush(assistantMsg);
 
-        // trigger profile synthesis every 5 exchanges (10 messages)
+        // full synthesis every 5 exchanges (10 messages) for deep multi-source analysis
         int newTotal = size + 2;
         if (newTotal >= 10 && newTotal % 10 == 0) {
             synthesisService.synthesizeAsync(userId);

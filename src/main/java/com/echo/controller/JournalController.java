@@ -7,6 +7,8 @@ import com.echo.security.UserPrincipal;
 import com.echo.service.JournalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JournalController {
 
+    private static final Logger log = LoggerFactory.getLogger(JournalController.class);
     private final JournalService journalService;
 
     /**
@@ -40,9 +43,15 @@ public class JournalController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @AuthenticationPrincipal UserPrincipal principal) throws IOException {
 
+        byte[] audioBytes = audio.getBytes();
+        log.info("Audio upload received: filename={} bytes={} durationSeconds={}",
+                audio.getOriginalFilename(), audioBytes.length, durationSeconds);
+        if (audioBytes.length == 0) {
+            return ResponseEntity.badRequest().build();
+        }
         JournalEntryResponse response = journalService.createEntry(
                 principal.getId(),
-                audio.getBytes(),
+                audioBytes,
                 audio.getOriginalFilename(),
                 OffsetDateTime.parse(recordedAt),
                 durationSeconds,

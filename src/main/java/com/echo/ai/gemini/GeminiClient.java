@@ -184,7 +184,15 @@ public class GeminiClient {
         if (parts == null || parts.isEmpty()) {
             throw new RuntimeException("Gemini returned empty parts, finishReason=" + finishReason);
         }
-        String text = (String) ((Map<?, ?>) parts.get(0)).get("text");
+        // Gemini 2.5 Flash (thinking model) includes thought parts with "thought": true.
+        // Skip those and find the actual response part.
+        String text = null;
+        for (Object partObj : parts) {
+            Map<?, ?> part = (Map<?, ?>) partObj;
+            if (Boolean.TRUE.equals(part.get("thought"))) continue;
+            text = (String) part.get("text");
+            if (text != null && !text.isBlank()) break;
+        }
         if (text == null || text.isBlank()) {
             throw new RuntimeException("Gemini returned blank text, finishReason=" + finishReason);
         }

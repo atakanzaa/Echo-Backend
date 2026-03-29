@@ -77,10 +77,15 @@ public class AISynthesisService {
      * CoachService tarafından her 5. mesaj alışverişi veya oturum bitiminde çağrılır.
      * Virtual thread üzerinde çalışır — coach yanıtını asla engellemez.
      */
+    /**
+     * Session-end trigger: synthesizes only today's data (period=1).
+     * Fast and focused — captures what happened today without re-processing old history.
+     * The 7/30/90-day deep synthesis runs on-demand from the Insights page.
+     */
     @Async
     public void synthesizeAsync(UUID userId) {
         try {
-            synthesize(userId, 7);
+            synthesize(userId, 1);
             log.debug("Async synthesis tamamlandı: userId={}", userId);
         } catch (Exception e) {
             log.warn("Async synthesis başarısız: userId={}, hata={}", userId, e.getMessage());

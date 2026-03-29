@@ -155,6 +155,13 @@ public class JournalService {
 
             // 2. transcribe
             String transcript = router.transcription().transcribe(audioBytes, filename);
+            if (transcript == null || transcript.strip().length() < 15) {
+                log.warn("Transcript too short ({}), marking failed: entryId={}",
+                        transcript == null ? 0 : transcript.length(), entryId);
+                entryUpdater.markFailed(entryId,
+                        "Audio too short or silent. Please record at least a few seconds of speech.");
+                return;
+            }
             entryUpdater.setTranscript(entryId, transcript);
             entryUpdater.updateStatus(entryId, EntryStatus.ANALYZING);
 

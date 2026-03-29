@@ -2,6 +2,7 @@ package com.echo.dto.response;
 
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.journal.JournalEntry;
+import com.echo.domain.journal.MoodCategory;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,16 +38,19 @@ public record JournalEntryResponse(
             String       summary,
             double       moodScore,
             String       moodLabel,
+            String       moodCategory,
             List<String> topics,
             String       reflectiveQuestion,
             List<String> keyEmotions,
             String       energyLevel
     ) {
         public static AnalysisResultResponse from(AnalysisResult result) {
+            double score = result.getMoodScore().doubleValue();
             return new AnalysisResultResponse(
                     result.getSummary(),
-                    result.getMoodScore().doubleValue(),
+                    score,
                     result.getMoodLabel(),
+                    MoodCategory.fromScore(score).name(),
                     result.getTopics(),
                     result.getReflectiveQuestion(),
                     result.getKeyEmotions(),

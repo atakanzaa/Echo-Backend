@@ -1,5 +1,6 @@
 package com.echo.service;
 
+import com.echo.domain.journal.MoodCategory;
 import com.echo.dto.response.CalendarMonthResponse;
 import com.echo.repository.AnalysisResultRepository;
 import lombok.RequiredArgsConstructor;
@@ -40,11 +41,14 @@ public class CalendarService {
         for (int d = 1; d <= yearMonth.lengthOfMonth(); d++) {
             LocalDate date    = yearMonth.atDay(d);
             var       result  = byDate.get(date);
+            double score    = result != null && result.getMoodScore() != null ? result.getMoodScore().doubleValue() : 0.0;
+            String category = result != null ? MoodCategory.fromScore(score).name() : null;
             days.add(new CalendarMonthResponse.CalendarDay(
                     d,
                     result != null ? result.getMoodLabel() : null,
                     result != null ? result.getJournalEntry().getId().toString() : null,
-                    result != null && result.getMoodScore() != null ? result.getMoodScore().doubleValue() : 0.0
+                    score,
+                    category
             ));
         }
 

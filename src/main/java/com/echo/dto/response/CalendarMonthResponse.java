@@ -11,6 +11,7 @@ public record CalendarMonthResponse(
             int    day,
             String moodLabel,
             String entryId,
-            double moodScore
+            double moodScore,
+            String moodCategory
     ) {}
 }
