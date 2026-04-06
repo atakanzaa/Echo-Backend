@@ -162,7 +162,8 @@ public class AISynthesisService {
                 user.getCurrentStreak(),
                 user.getTotalEntries(),
                 userProfile,
-                null  // previousPeriodTrend — ileriki iterasyonda
+                null,  // previousPeriodTrend — future iteration
+                user.getPreferredLanguage()
         );
     }
 

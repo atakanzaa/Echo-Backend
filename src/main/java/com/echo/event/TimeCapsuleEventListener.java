@@ -42,6 +42,11 @@ public class TimeCapsuleEventListener {
             return;
         }
 
+        if (timeCapsuleRepository.existsByUserIdAndSourceJournalEntryId(user.getId(), event.journalEntryId())) {
+            log.debug("Time capsule already exists for this entry, skipping");
+            return;
+        }
+
         String title = event.analysis().memoryCapsuleTitle();
         if (title == null || title.isBlank()) {
             title = "Anıya Değer Gün — " + OffsetDateTime.now().toLocalDate();
@@ -56,6 +61,7 @@ public class TimeCapsuleEventListener {
                     .title(title)
                     .contentText(content)
                     .contentType("text")
+                    .sourceJournalEntryId(event.journalEntryId())
                     .sealedAt(now)
                     .unlockAt(now.plusYears(1))
                     .status("sealed")

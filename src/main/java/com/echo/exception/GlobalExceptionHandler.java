@@ -60,15 +60,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Bad request rejected: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of("BAD_REQUEST", ex.getMessage()));
+                .body(ErrorResponse.of("BAD_REQUEST", "Invalid request"));
     }
 
     @ExceptionHandler(ServiceUnavailableException.class)
     public ResponseEntity<ErrorResponse> handleServiceUnavailable(ServiceUnavailableException ex) {
-        log.warn("AI servisi kullanılamıyor: {}", ex.getMessage());
+        log.warn("Service temporarily unavailable: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body(ErrorResponse.of("SERVICE_UNAVAILABLE", ex.getMessage()));
+                .body(ErrorResponse.of("SERVICE_UNAVAILABLE", "Service temporarily unavailable"));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

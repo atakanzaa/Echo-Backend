@@ -1,9 +1,11 @@
 package com.echo.service;
 
 import com.echo.domain.journal.AnalysisResult;
+import com.echo.domain.journal.MoodCategory;
 import com.echo.domain.journal.SummaryPeriod;
 import com.echo.dto.response.SummaryResponse;
 import com.echo.repository.AnalysisResultRepository;
+import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ public class SummaryService {
 
     private final AnalysisResultRepository analysisResultRepository;
     private final AISynthesisService       synthesisService;
+    private final UserRepository           userRepository;
 
     @Transactional(readOnly = true)
     public SummaryResponse getSummary(UUID userId, SummaryPeriod period, LocalDate endDate) {
@@ -38,8 +41,7 @@ public class SummaryService {
         double highMood = results.stream().mapToDouble(r -> r.getMoodScore().doubleValue()).max().orElse(0);
         double lowMood  = results.stream().mapToDouble(r -> r.getMoodScore().doubleValue()).min().orElse(0);
 
-        // Mood trend: compare first half vs second half
-        String moodTrend = computeMoodTrend(results);
+        String moodTrend = MoodStatisticsCalculator.computeMoodTrend(results);
 
         // Top topics
         List<String> dominantTopics = results.stream()
@@ -80,9 +82,12 @@ public class SummaryService {
                 .map(r -> new SummaryResponse.DailyMoodScore(
                         r.getEntryDate().toString(),
                         r.getMoodScore().doubleValue(),
-                        r.getMoodLabel()))
+                        r.getMoodLabel(),
+                        MoodCategory.fromScore(r.getMoodScore().doubleValue()).name()))
                 .sorted(Comparator.comparing(SummaryResponse.DailyMoodScore::date))
                 .toList();
+        Map<String, Double> moodCategoryDistribution =
+                MoodStatisticsCalculator.computeMoodCategoryDistribution(results);
 
         return new SummaryResponse(
                 startDate.toString(),
@@ -97,35 +102,29 @@ public class SummaryService {
                 dominantTopics,
                 topEmotions,
                 energyDist,
+                moodCategoryDistribution,
                 bestDay,
                 worstDay,
-                buildNarrativeSummary(userId, results, period, avgMood),
+                buildNarrativeSummary(userId, results, period, avgMood,
+                        userRepository.findById(userId).map(u -> u.getPreferredLanguage()).orElse("tr")),
                 dailyMoodScores
         );
     }
 
-    private String computeMoodTrend(List<AnalysisResult> results) {
-        if (results.size() < 2) return "stable";
-        int half = results.size() / 2;
-        // results is DESC order, so second half is older
-        double recentAvg = results.subList(0, half).stream()
-                .mapToDouble(r -> r.getMoodScore().doubleValue()).average().orElse(0);
-        double olderAvg  = results.subList(half, results.size()).stream()
-                .mapToDouble(r -> r.getMoodScore().doubleValue()).average().orElse(0);
-        if (recentAvg > olderAvg + 0.05) return "improving";
-        if (recentAvg < olderAvg - 0.05) return "declining";
-        return "stable";
-    }
-
     private String buildNarrativeSummary(UUID userId, List<AnalysisResult> results,
-                                          SummaryPeriod period, double avgMood) {
+                                          SummaryPeriod period, double avgMood, String language) {
         try {
             var synthesis = synthesisService.synthesize(userId, period.getDays());
             if (synthesis.narrativeSummary() != null) return synthesis.narrativeSummary();
         } catch (Exception e) {
-            log.warn("AI narrative oluşturulamadı, fallback kullanılıyor: {}", e.getMessage());
+            log.warn("AI narrative failed, using fallback: {}", e.getMessage());
         }
         // Fallback: template
+        if ("en".equals(language)) {
+            String sentiment = avgMood > 0.7 ? "positive" : avgMood > 0.4 ? "balanced" : "challenging";
+            return String.format("%d entries recorded over this %d-day period. Overall emotional tone appears %s.",
+                    results.size(), period.getDays(), sentiment);
+        }
         String sentiment = avgMood > 0.7 ? "olumlu" : avgMood > 0.4 ? "dengeli" : "zorlu";
         return String.format("Bu %d günlük dönemde %d giriş yapıldı. Genel duygusal ton %s görünüyor.",
                 period.getDays(), results.size(), sentiment);

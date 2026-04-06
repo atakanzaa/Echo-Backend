@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: echo-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - edge
+      - backend
+    mem_limit: 256m
+    cpus: "0.50"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  app:
+    ports: []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    networks:
+      - backend
+    mem_limit: 2g
+    cpus: "1.50"
+    pids_limit: 512
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  db:
+    networks:
+      - backend
+    mem_limit: 1g
+    cpus: "1.00"
+    pids_limit: 256
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  edge:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+
+volumes:
+  caddy_data:
+  caddy_config:

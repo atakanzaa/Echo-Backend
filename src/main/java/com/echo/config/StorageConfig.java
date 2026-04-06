@@ -1,14 +1,25 @@
 package com.echo.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+
+import java.net.URI;
 
 @Configuration
+@RequiredArgsConstructor
 public class StorageConfig {
+
+    private final AppProperties props;
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;
 
@@ -45,6 +56,22 @@ public class StorageConfig {
     @Qualifier("transcriptionRestTemplate")
     public RestTemplate transcriptionRestTemplate() {
         return build(CONNECT_TIMEOUT_MS, 25_000);
+    }
+
+    /**
+     * S3Client configured for Cloudflare R2 (or any S3-compatible endpoint).
+     * Only created when STORAGE_TYPE=s3. Injected as Optional<S3Client> in StorageService.
+     */
+    @Bean
+    @ConditionalOnProperty(name = "app.storage.type", havingValue = "s3")
+    public S3Client s3Client() {
+        AppProperties.Storage storage = props.getStorage();
+        return S3Client.builder()
+                .endpointOverride(URI.create(storage.getS3Endpoint()))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(storage.getS3AccessKey(), storage.getS3SecretKey())))
+                .region(Region.of(storage.getS3Region()))
+                .build();
     }
 
     private RestTemplate build(int connectMs, int readMs) {

@@ -78,7 +78,7 @@ public class CoachService {
                 session.setJournalEntry(journalEntry);
                 journalContext = buildJournalContext(journalEntry);
                 String dateStr = journalEntry.getEntryDate()
-                        .format(DateTimeFormatter.ofPattern("d MMMM", new Locale("tr")));
+                        .format(DateTimeFormatter.ofPattern("d MMMM", new Locale(user.getPreferredLanguage())));
                 session.setTitle(dateStr + " Journal Discussion");
             }
         }
@@ -90,7 +90,7 @@ public class CoachService {
         CoachSession saved = sessionRepo.saveAndFlush(session);
 
         // generate personalized welcome message
-        String welcomeContent = generateWelcomeMessage(userId, user.getDisplayName(), journalContext);
+        String welcomeContent = generateWelcomeMessage(userId, user.getDisplayName(), journalContext, user.getPreferredLanguage());
         CoachMessage welcome = CoachMessage.builder()
                 .session(saved).user(user)
                 .role(MessageRole.ASSISTANT)
@@ -119,7 +119,7 @@ public class CoachService {
         return ctx.toString();
     }
 
-    private String generateWelcomeMessage(UUID userId, String displayName, String journalContext) {
+    private String generateWelcomeMessage(UUID userId, String displayName, String journalContext, String language) {
         try {
             // single DB call for all context instead of 3 separate queries
             UserContext ctx = buildUserContext(userId);
@@ -142,7 +142,7 @@ public class CoachService {
             var response = router.coach().chat(new AICoachRequest(
                     prompt, List.of(),
                     userMemoryService.getUserProfile(userId),
-                    ctx.moodContext(), ctx.topics(), ctx.goals(), name
+                    ctx.moodContext(), ctx.topics(), ctx.goals(), name, language
             ));
             return response.content();
         } catch (Exception e) {
@@ -182,20 +182,19 @@ public class CoachService {
         // single DB call for all context (was 3 separate queries)
         UserContext ctx = buildUserContext(userId);
 
-        // save user message
-        CoachMessage userMsg = CoachMessage.builder()
-                .session(session).user(user).role(MessageRole.USER).content(request.content()).build();
-        messageRepo.saveAndFlush(userMsg);
-
         // AI call
         var aiResponse = router.coach().chat(new AICoachRequest(
                 request.content(), chatHistory,
                 userMemoryService.getUserProfile(userId),
                 ctx.moodContext(), ctx.topics(), ctx.goals(),
-                user.getDisplayName()
+                user.getDisplayName(), user.getPreferredLanguage()
         ));
 
-        // save AI response
+        // Save user + assistant messages atomically after AI succeeds.
+        CoachMessage userMsg = CoachMessage.builder()
+                .session(session).user(user).role(MessageRole.USER).content(request.content()).build();
+        messageRepo.saveAndFlush(userMsg);
+
         CoachMessage assistantMsg = CoachMessage.builder()
                 .session(session).user(user).role(MessageRole.ASSISTANT).content(aiResponse.content()).build();
         messageRepo.saveAndFlush(assistantMsg);

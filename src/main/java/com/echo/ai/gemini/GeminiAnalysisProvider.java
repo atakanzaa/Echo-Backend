@@ -81,7 +81,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
         String url    = String.format(GEMINI_URL, model, apiKey);
 
         // User content is wrapped in explicit delimiters to prevent prompt injection
-        String userPrompt = buildUserPrompt(request.transcript());
+        String userPrompt = buildUserPrompt(request.transcript(), request.language());
 
         Map<String, Object> requestBody = Map.of(
                 "system_instruction", Map.of(
@@ -108,6 +108,10 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
         return parseResponse(json);
     }
 
+    private static String langName(String code) {
+        return "en".equals(code) ? "English" : "Turkish";
+    }
+
     private AIAnalysisResponse analyzeFallback(AIAnalysisRequest request, Throwable ex) {
         log.error("Gemini analysis circuit open: {}", ex.getMessage());
         throw new ServiceUnavailableException("AI analysis service is temporarily unavailable.", ex);
@@ -117,9 +121,9 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
      * Wraps user-supplied text in explicit delimiters.
      * Also strips known prompt injection patterns before wrapping.
      */
-    private String buildUserPrompt(String rawTranscript) {
+    private String buildUserPrompt(String rawTranscript, String language) {
         String sanitized = sanitizeUserInput(rawTranscript);
-        return "Analyze the following journal entry:\n\n" +
+        return "Respond in " + langName(language) + ". Analyze the following journal entry:\n\n" +
                "\"\"\"USER_INPUT_START\"\"\"\n" +
                sanitized +
                "\n\"\"\"USER_INPUT_END\"\"\"";

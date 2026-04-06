@@ -6,5 +6,6 @@ public record CreatePostRequest(
         @Size(max = 1000) String content,
         String contentType,
         String emoji,
-        boolean isAnonymous
+        boolean isAnonymous,
+        String badgeKey
 ) {}

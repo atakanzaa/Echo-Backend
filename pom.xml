@@ -116,6 +116,20 @@
             <artifactId>caffeine</artifactId>
         </dependency>
 
+        <!-- AWS S3 SDK v2 — used for Cloudflare R2 (S3-compatible) image storage -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.25.27</version>
+        </dependency>
+
+        <!-- Structured JSON logging -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>7.4</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

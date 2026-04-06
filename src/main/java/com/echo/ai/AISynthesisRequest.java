@@ -15,7 +15,8 @@ public record AISynthesisRequest(
         int currentStreak,
         int totalEntries,
         String userProfile,
-        String previousPeriodTrend
+        String previousPeriodTrend,
+        String language
 ) {
     public record EntrySummary(
             String date,

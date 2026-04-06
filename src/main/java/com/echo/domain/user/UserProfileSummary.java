@@ -50,6 +50,11 @@ public class UserProfileSummary {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Version
+    @Column(nullable = false)
+    @Builder.Default
+    private Long version = 0L;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

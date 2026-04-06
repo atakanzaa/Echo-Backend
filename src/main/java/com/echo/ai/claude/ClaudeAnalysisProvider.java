@@ -71,7 +71,8 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
                 "system", SYSTEM_PROMPT,
                 "messages", List.of(Map.of(
                         "role", "user",
-                        "content", "Analyze this journal entry: " + request.transcript()
+                        "content", "Respond in " + langName(request.language()) + ". " +
+                                   "Analyze this journal entry: " + request.transcript()
                 ))
         );
 
@@ -87,6 +88,10 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
 
         String json = extractClaudeContent(response.getBody());
         return parseResponse(json);
+    }
+
+    private static String langName(String code) {
+        return "en".equals(code) ? "English" : "Turkish";
     }
 
     private AIAnalysisResponse analyzeFallback(AIAnalysisRequest request, Throwable ex) {

@@ -50,6 +50,12 @@ public class GoalEventListener {
 
         for (AIGoal aiGoal : goals) {
             try {
+                if (goalRepository.existsByUserIdAndSourceJournalEntryIdAndTitle(
+                        user.getId(), event.journalEntryId(), aiGoal.title())) {
+                    log.debug("Goal already exists, skipping: title='{}'", aiGoal.title());
+                    continue;
+                }
+
                 Goal goal = Goal.builder()
                         .user(user)
                         .title(aiGoal.title())

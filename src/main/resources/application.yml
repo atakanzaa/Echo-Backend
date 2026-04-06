@@ -1,10 +1,14 @@
+# ── Shared Configuration ───────────────────────────────────────────────────────
+# Profile-specific overrides: application-dev.yml, application-prod.yml
+# Activate with: spring.profiles.active=dev|prod
+
 spring:
   application:
     name: echo-backend
 
   threads:
     virtual:
-      enabled: true  # Java 21 — tüm Tomcat request handler'ları virtual thread'de çalışır
+      enabled: true
 
   jackson:
     property-naming-strategy: SNAKE_CASE
@@ -35,14 +39,12 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: ${MAX_AUDIO_SIZE:50MB}
-      max-request-size: ${MAX_AUDIO_SIZE:50MB}
+      max-file-size: 50MB
+      max-request-size: 50MB
 
 app:
   jwt:
-    secret:                       ${JWT_SECRET}  # Zorunlu — default yok. Başlatma başarısız olur.
-    access-token-expiry-seconds:  ${JWT_ACCESS_EXPIRY:900}
-    refresh-token-expiry-seconds: ${JWT_REFRESH_EXPIRY:2592000}
+    secret: ${JWT_SECRET}
 
   ai:
     provider: ${AI_PROVIDER:gemini}
@@ -64,8 +66,14 @@ app:
       coach-model:      ${CLAUDE_COACH_MODEL:claude-haiku-4-5-20251001}
 
   storage:
-    type:       ${STORAGE_TYPE:local}
-    local-path: ${LOCAL_STORAGE_PATH:/tmp/echo-audio}
+    type:                   ${STORAGE_TYPE:local}
+    local-images-path:      ${LOCAL_IMAGES_PATH:${user.home}/echo-uploads/images}
+    s3-endpoint:            ${R2_ENDPOINT:}
+    s3-access-key:          ${R2_ACCESS_KEY:}
+    s3-secret-key:          ${R2_SECRET_KEY:}
+    s3-region:              ${R2_REGION:auto}
+    images-bucket:          ${R2_IMAGES_BUCKET:echo-community-images}
+    images-public-base-url: ${R2_IMAGES_PUBLIC_URL:}
 
   prompts:
     analysis-version:      ${PROMPT_ANALYSIS_VERSION:analysis-v4}
@@ -85,7 +93,6 @@ management:
 resilience4j:
   circuitbreaker:
     instances:
-      # Analysis: background job, more tolerant of slowness
       gemini-analysis:
         sliding-window-size: 20
         failure-rate-threshold: 40
@@ -95,7 +102,6 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 3
         register-health-indicator: true
 
-      # Coach: user is waiting — fail faster
       gemini-coach:
         sliding-window-size: 10
         failure-rate-threshold: 50
@@ -105,7 +111,6 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 2
         register-health-indicator: true
 
-      # Synthesis: heaviest op, longest allowed duration
       gemini-synthesis:
         sliding-window-size: 10
         failure-rate-threshold: 50
@@ -115,7 +120,6 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 2
         register-health-indicator: true
 
-      # Transcription: audio upload — medium tolerance
       gemini-transcription:
         sliding-window-size: 15
         failure-rate-threshold: 40
@@ -125,7 +129,6 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 3
         register-health-indicator: true
 
-      # OpenAI: same thresholds as Gemini equivalents
       openai-coach:
         sliding-window-size: 10
         failure-rate-threshold: 50
@@ -162,7 +165,6 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 3
         register-health-indicator: true
 
-      # Claude
       claude-coach:
         sliding-window-size: 10
         failure-rate-threshold: 50

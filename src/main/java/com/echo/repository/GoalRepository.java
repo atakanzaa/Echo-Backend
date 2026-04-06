@@ -20,4 +20,8 @@ public interface GoalRepository extends JpaRepository<Goal, UUID> {
 
     /** Belirli statüdeki hedef sayısı — synthesis için tamamlanan hedef sayısında kullanılır */
     int countByUserIdAndStatus(UUID userId, String status);
+
+    boolean existsByUserIdAndSourceJournalEntryIdAndTitle(UUID userId,
+                                                           UUID sourceJournalEntryId,
+                                                           String title);
 }

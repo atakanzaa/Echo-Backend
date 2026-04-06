@@ -62,11 +62,16 @@ public class OpenAICoachProvider implements AICoachProvider {
             Türkiye'de 7/24 ücretsiz: 182 (İntihar Önleme Hattı)"
             Sonra başka bir şey ekleme.
 
-            KURAL: Kullanıcının dilinde yanıt ver.
+            RULE: Always respond in {language}. Language codes: tr=Turkish, en=English.
             """;
 
+    private static String langName(String code) {
+        return "en".equals(code) ? "English" : "Turkish";
+    }
+
     private String buildSystemPrompt(AICoachRequest request) {
-        var sb = new StringBuilder(BASE_PROMPT);
+        String lang = request.language() != null ? request.language() : "tr";
+        var sb = new StringBuilder(BASE_PROMPT.replace("{language}", langName(lang)));
         if (request.moodContext() != null) {
             sb.append("\nKULLANICI RUH HALİ BAĞLAMI:\n").append(request.moodContext());
         }

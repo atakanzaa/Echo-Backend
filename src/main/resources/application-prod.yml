@@ -1,0 +1,64 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url:      jdbc:postgresql://db:5432/echo_prod
+    username: ${DB_USER}
+    password: ${DB_PASS}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+server:
+  shutdown: graceful
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: application/json,application/xml,text/plain,text/html,text/xml,text/css,application/javascript
+
+app:
+  jwt:
+    access-token-expiry-seconds:  900      # 15 min
+    refresh-token-expiry-seconds: 604800   # 7 days
+
+  storage:
+    type: s3
+
+  cors:
+    allowed-origin-patterns:
+      - "https://*.echojournal.net"
+    allowed-headers:
+      - "Content-Type"
+      - "Authorization"
+      - "Accept"
+      - "X-Request-ID"
+    allow-credentials: false
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+logging:
+  level:
+    com.echo: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN

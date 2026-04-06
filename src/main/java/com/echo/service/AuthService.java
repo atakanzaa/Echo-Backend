@@ -50,6 +50,7 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .displayName(request.displayName())
                 .timezone(request.timezone() != null ? request.timezone() : "UTC")
+                .preferredLanguage(request.language() != null ? request.language() : "tr")
                 .build();
 
         user = userRepository.save(user);

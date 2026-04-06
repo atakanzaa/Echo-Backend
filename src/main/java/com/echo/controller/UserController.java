@@ -37,6 +37,7 @@ public class UserController {
                 .map(user -> {
                     if (request.displayName() != null) user.setDisplayName(request.displayName());
                     if (request.timezone() != null)    user.setTimezone(request.timezone());
+                    if (request.language() != null)    user.setPreferredLanguage(request.language());
                     return ResponseEntity.ok(UserResponse.from(userRepository.save(user)));
                 })
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));

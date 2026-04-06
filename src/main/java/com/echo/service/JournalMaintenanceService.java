@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * Prodüksiyon critical bug: Sunucu restart olduğunda async pipeline'daki entry'ler
  * UPLOADING / TRANSCRIBING / ANALYZING durumunda sonsuza dek takılı kalır.
- * Bu servis her 5 dakikada çalışır ve 10 dakikadan fazla süredir bu durumlarda
+ * Bu servis her 5 dakikada çalışır ve 20 dakikadan fazla süredir bu durumlarda
  * bulunan entry'leri FAILED olarak işaretler.
  */
 @Slf4j
@@ -23,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JournalMaintenanceService {
 
-    private static final int  STUCK_THRESHOLD_MINUTES = 10;
+    private static final int  STUCK_THRESHOLD_MINUTES = 20;
     private static final long CHECK_INTERVAL_MS        = 5 * 60 * 1_000L; // 5 dakika
 
     private final JournalEntryRepository journalEntryRepository;

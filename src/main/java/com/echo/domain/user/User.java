@@ -71,6 +71,10 @@ public class User {
     @Builder.Default
     private Long version = 0L;
 
+    @Column(name = "preferred_language", nullable = false, length = 10)
+    @Builder.Default
+    private String preferredLanguage = "tr";
+
     // KVKK / privacy consent fields
     @Column(name = "ai_training_consent", nullable = false)
     @Builder.Default

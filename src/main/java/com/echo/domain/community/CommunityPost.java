@@ -25,6 +25,7 @@ public class CommunityPost {
     @Column(name = "audio_url") private String audioUrl;
     @Column(name = "audio_duration") private Integer audioDuration;
     @Column(name = "image_url", length = 500) private String imageUrl;
+    @Column(name = "badge_key", length = 50) private String badgeKey;
     @Column(length = 10) private String emoji;
     @Column(name = "is_anonymous", nullable = false) @Builder.Default private boolean anonymous = false;
     @Column(name = "is_public", nullable = false) @Builder.Default private boolean publicPost = true;

@@ -7,10 +7,15 @@ import com.echo.dto.request.CreatePostRequest;
 import com.echo.dto.response.CommunityPostResponse;
 import com.echo.dto.response.PagedResponse;
 import com.echo.dto.response.PostCommentResponse;
+import com.echo.event.CommentRepliedEvent;
+import com.echo.event.PostCommentedEvent;
+import com.echo.event.PostLikedEvent;
 import com.echo.exception.ResourceNotFoundException;
 import com.echo.exception.UnauthorizedException;
 import com.echo.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,13 +24,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CommunityService {
@@ -36,8 +38,10 @@ public class CommunityService {
     private final UserRepository          userRepository;
     private final FollowRepository        followRepository;
     private final CommentLikeRepository   commentLikeRepository;
-
-    private static final String IMAGE_UPLOAD_DIR = "/tmp/echo-uploads/images";
+    private final StorageService          storageService;
+    private final UserAchievementRepository userAchievementRepository;
+    private final AchievementService        achievementService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── Feed ──────────────────────────────────────────────────────────────────
 
@@ -49,10 +53,7 @@ public class CommunityService {
                 ? getFollowingFeed(userId, pageable)
                 : communityPostRepository.findByPublicPostTrueOrderByCreatedAtDesc(pageable);
 
-        Set<UUID> likedPostIds = postLikeRepository.findAll().stream()
-                .filter(l -> l.getUser().getId().equals(userId))
-                .map(l -> l.getPost().getId())
-                .collect(Collectors.toSet());
+        Set<UUID> likedPostIds = postLikeRepository.findLikedPostIdsByUserId(userId);
 
         return PagedResponse.from(posts, p -> CommunityPostResponse.from(p, likedPostIds.contains(p.getId())));
     }
@@ -83,24 +84,44 @@ public class CommunityService {
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
 
         String imageUrl = null;
+        String content = request.content();
         String contentType = request.contentType() != null ? request.contentType() : "text";
+        String badgeKey = normalizeBadgeKey(request.badgeKey());
+
+        log.info("createPost: imageFile={} size={} contentType={} badgeKey={}",
+                imageFile != null ? imageFile.getOriginalFilename() : "null",
+                imageFile != null ? imageFile.getSize() : 0,
+                imageFile != null ? imageFile.getContentType() : "null",
+                badgeKey);
 
         if (imageFile != null && !imageFile.isEmpty()) {
-            imageUrl = saveImage(imageFile);
+            imageUrl = storageService.uploadImage(imageFile);
+            log.info("createPost: image uploaded → {}", imageUrl);
             contentType = "image";
         }
 
-        if (imageUrl == null && (request.content() == null || request.content().isBlank())) {
+        if (badgeKey != null) {
+            if (!userAchievementRepository.existsByUserIdAndBadgeKey(userId, badgeKey)) {
+                throw new IllegalArgumentException("Badge must be earned before sharing: " + badgeKey);
+            }
+            if (content == null || content.isBlank()) {
+                content = achievementService.generateShareText(badgeKey);
+            }
+            contentType = "achievement";
+        }
+
+        if (imageUrl == null && (content == null || content.isBlank())) {
             throw new IllegalArgumentException("Text post must have content");
         }
 
         CommunityPost post = CommunityPost.builder()
                 .user(user)
-                .content(request.content())
+                .content(content)
                 .contentType(contentType)
                 .emoji(request.emoji())
                 .anonymous(request.isAnonymous())
                 .imageUrl(imageUrl)
+                .badgeKey(badgeKey)
                 .build();
         return CommunityPostResponse.from(communityPostRepository.save(post), false);
     }
@@ -113,6 +134,7 @@ public class CommunityService {
                 .orElseThrow(() -> new ResourceNotFoundException("Gönderi bulunamadı"));
         if (!post.getUser().getId().equals(userId))
             throw new UnauthorizedException("Bu gönderiyi silme yetkiniz yok");
+        storageService.deleteImage(post.getImageUrl());
         communityPostRepository.delete(post);
     }
 
@@ -126,18 +148,15 @@ public class CommunityService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
         postLikeRepository.save(PostLike.builder().post(post).user(user).build());
-        post.setLikesCount(post.getLikesCount() + 1);
-        communityPostRepository.save(post);
+        communityPostRepository.incrementLikesCount(postId);
+        eventPublisher.publishEvent(new PostLikedEvent(userId, post.getUser().getId(), postId));
     }
 
     @Transactional
     public void unlikePost(UUID postId, UUID userId) {
         postLikeRepository.findByPostIdAndUserId(postId, userId).ifPresent(like -> {
             postLikeRepository.delete(like);
-            communityPostRepository.findById(postId).ifPresent(post -> {
-                post.setLikesCount(Math.max(0, post.getLikesCount() - 1));
-                communityPostRepository.save(post);
-            });
+            communityPostRepository.decrementLikesCount(postId);
         });
     }
 
@@ -170,20 +189,30 @@ public class CommunityService {
 
         PostComment.PostCommentBuilder builder = PostComment.builder()
                 .post(post).user(user).content(request.content());
+        PostComment parentComment = null;
 
         if (request.parentId() != null) {
-            PostComment parent = postCommentRepository.findById(request.parentId())
+            parentComment = postCommentRepository.findById(request.parentId())
                     .orElseThrow(() -> new ResourceNotFoundException("Parent yorum bulunamadı"));
-            if (!parent.getPost().getId().equals(postId))
+            if (!parentComment.getPost().getId().equals(postId))
                 throw new IllegalArgumentException("Parent comment does not belong to this post");
-            if (parent.getParent() != null)
+            if (parentComment.getParent() != null)
                 throw new IllegalArgumentException("Cannot reply to a reply (max 1 level depth)");
-            builder.parent(parent);
+            builder.parent(parentComment);
         }
 
         PostComment comment = postCommentRepository.save(builder.build());
-        post.setCommentsCount(post.getCommentsCount() + 1);
-        communityPostRepository.save(post);
+        communityPostRepository.incrementCommentsCount(postId);
+
+        if (parentComment == null) {
+            eventPublisher.publishEvent(new PostCommentedEvent(
+                    userId, post.getUser().getId(), postId, comment.getId(), post.isAnonymous()
+            ));
+        } else {
+            eventPublisher.publishEvent(new CommentRepliedEvent(
+                    userId, parentComment.getUser().getId(), postId, comment.getId(), post.isAnonymous()
+            ));
+        }
         return PostCommentResponse.from(comment, false, Collections.emptyList());
     }
 
@@ -200,8 +229,7 @@ public class CommunityService {
             throw new UnauthorizedException("Bu yorumu silme yetkiniz yok");
 
         long replyCount = postCommentRepository.countByParentId(commentId);
-        post.setCommentsCount(Math.max(0, post.getCommentsCount() - (int) (1 + replyCount)));
-        communityPostRepository.save(post);
+        communityPostRepository.decrementCommentsCount(postId, (int) (1 + replyCount));
         postCommentRepository.delete(comment);
     }
 
@@ -215,18 +243,14 @@ public class CommunityService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
         commentLikeRepository.save(CommentLike.builder().comment(comment).user(user).build());
-        comment.setLikesCount(comment.getLikesCount() + 1);
-        postCommentRepository.save(comment);
+        postCommentRepository.incrementLikesCount(commentId);
     }
 
     @Transactional
     public void unlikeComment(UUID commentId, UUID userId) {
         commentLikeRepository.findByCommentIdAndUserId(commentId, userId).ifPresent(like -> {
             commentLikeRepository.delete(like);
-            postCommentRepository.findById(commentId).ifPresent(comment -> {
-                comment.setLikesCount(Math.max(0, comment.getLikesCount() - 1));
-                postCommentRepository.save(comment);
-            });
+            postCommentRepository.decrementLikesCount(commentId);
         });
     }
 
@@ -250,23 +274,11 @@ public class CommunityService {
                 .ifPresent(followRepository::delete);
     }
 
-    // ── Image Storage ─────────────────────────────────────────────────────────
-
-    private String saveImage(MultipartFile file) {
-        try {
-            Path dir = Paths.get(IMAGE_UPLOAD_DIR);
-            Files.createDirectories(dir);
-            String ext = getExtension(file.getOriginalFilename(), "jpg");
-            String filename = UUID.randomUUID() + "." + ext;
-            Files.write(dir.resolve(filename), file.getBytes());
-            return "/uploads/images/" + filename;
-        } catch (IOException e) {
-            throw new RuntimeException("Image could not be saved", e);
+    private String normalizeBadgeKey(String badgeKey) {
+        if (badgeKey == null || badgeKey.isBlank()) {
+            return null;
         }
+        return badgeKey.trim().toUpperCase(Locale.ROOT);
     }
 
-    private String getExtension(String filename, String defaultExt) {
-        if (filename == null || !filename.contains(".")) return defaultExt;
-        return filename.substring(filename.lastIndexOf('.') + 1);
-    }
 }

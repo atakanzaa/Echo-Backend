@@ -46,41 +46,41 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
     private static final String GEMINI_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
 
-    private static final String SYNTHESIS_PROMPT = """
-            Sen Echo uygulamasının AI analiz ve hafıza motorusun.
-            Kullanıcının günlük girişleri, coach konuşmaları, hedefleri, istatistikleri
-            ve mevcut profili sana veriliyor. Bu verileri analiz ederek sentez üret.
+    private static final String SYNTHESIS_PROMPT_TEMPLATE = """
+            You are the AI analysis and memory engine of the Echo app.
+            The user's journal entries, coach conversations, goals, stats, and current profile are provided.
+            Analyze this data and produce a synthesis.
 
-            SADECE geçerli JSON döndür. Açıklama, markdown, kod bloğu veya ek metin EKLEME.
-            İlk karakter { olmalı, son karakter } olmalı.
-            Bilgi yetersizse null döndür, bilgi UYDURMA.
+            Return ONLY valid JSON. No explanation, markdown, code blocks or extra text.
+            First character must be {, last character must be }.
+            If data is insufficient, return null — do NOT fabricate information.
 
-            JSON FORMATI:
+            JSON FORMAT:
             {
-              "narrative_summary": "3-5 cümle kullanıcı hikayesi",
-              "suggestions": [{"title": "...", "body": "...", "icon": "SF Symbol adı"}],
-              "emotional_assessment": "1-2 cümle duygusal durum",
+              "narrative_summary": "3-5 sentence user story",
+              "suggestions": [{"title": "...", "body": "...", "icon": "SF Symbol name"}],
+              "emotional_assessment": "1-2 sentence emotional state",
               "growth_score": 0-100,
-              "growth_label": "Türkçe etiket",
-              "growth_message": "1-2 cümle motivasyon",
-              "weekly_themes": ["tema1", "tema2"],
-              "coach_insight": "1 insight veya null",
+              "growth_label": "short growth label",
+              "growth_message": "1-2 sentence motivational message",
+              "weekly_themes": ["theme1", "theme2"],
+              "coach_insight": "1 insight or null",
               "profile_update": {
-                "user_profile": "2-3 cümle genel profil",
-                "emotional_patterns": "tekrarlayan duygusal kalıplar",
-                "values_strengths": "değerler ve güçlü yönler",
-                "growth_trajectory": "gelişim yörüngesi"
+                "user_profile": "2-3 sentence general profile",
+                "emotional_patterns": "recurring emotional patterns",
+                "values_strengths": "values and strengths",
+                "growth_trajectory": "growth trajectory"
               }
             }
 
-            KURALLAR:
-            - Türkçe yanıt ver
-            - suggestions max 3, spesifik ve uygulanabilir olsun
-            - growth_score: 0=ilerleme yok, 50=düzenli, 80+=önemli gelişim
-            - narrative_summary: istatistik DEĞİL, hikaye anlat
-            - coach_insight: coach konuşması yoksa null bırak
-            - profile_update: mevcut profili GELİŞTİR, silme veya sıfırlama yapma
-            - Bilgi yetersizse ilgili alanı null yap, TAHMIN ETME
+            RULES:
+            - Respond entirely in {language}
+            - suggestions max 3, specific and actionable
+            - growth_score: 0=no progress, 50=consistent, 80+=significant growth
+            - narrative_summary: tell a story, NOT statistics
+            - coach_insight: null if no coach conversations
+            - profile_update: IMPROVE the existing profile, do not erase or reset
+            - If data is insufficient, set field to null — do NOT guess
             """;
 
     @Override
@@ -90,12 +90,14 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
         String apiKey = props.getAi().getGemini().getApiKey();
         String url    = String.format(GEMINI_URL, model, apiKey);
 
+        String lang = request.language() != null ? request.language() : "tr";
+        String synthesisPrompt = SYNTHESIS_PROMPT_TEMPLATE.replace("{language}", langName(lang));
         String userMessage = buildUserMessage(request);
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(Map.of(
                         "parts", List.of(Map.of(
-                                "text", SYNTHESIS_PROMPT + "\n\n[KULLANICI VERİLERİ]\n" + userMessage
+                                "text", synthesisPrompt + "\n\n[USER DATA]\n" + userMessage
                         ))
                 )),
                 "generationConfig", Map.of(
@@ -118,6 +120,10 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
             log.error("synthesis_parse_error raw_json={} cause={}", json, e.getMessage(), e);
             return emptyResponse(json);
         }
+    }
+
+    private static String langName(String code) {
+        return "en".equals(code) ? "English" : "Turkish";
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {

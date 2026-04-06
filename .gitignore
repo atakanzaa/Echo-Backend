@@ -1,5 +1,8 @@
-# Secrets — asla commit etme
+# Secrets — never commit
 .env
+.env.*
+!.env.example
+!.env.prod.example
 *.pem
 *.key
 

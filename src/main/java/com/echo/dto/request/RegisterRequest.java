@@ -16,5 +16,7 @@ public record RegisterRequest(
         @JsonProperty("display_name")
         String displayName,
 
-        String timezone
+        String timezone,
+
+        String language
 ) {}

@@ -40,10 +40,10 @@ public class JournalService {
     private final JournalEntryRepository journalEntryRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final UserRepository userRepository;
-    private final StorageService storageService;
     private final AIProviderRouter router;
     private final AchievementService achievementService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AiJobDlqService aiJobDlqService;
     // separate bean fixes @Transactional self-invocation in @Async methods
     private final JournalEntryUpdater entryUpdater;
 
@@ -127,9 +127,9 @@ public class JournalService {
     public void analyzeTranscriptAsync(UUID entryId, String transcript, UUID userId) {
         log.info("Transcript analysis started: entryId={}", entryId);
         try {
-            String timezone = getUserTimezone(userId);
+            UserDetails details = getUserDetails(userId);
             AIAnalysisResponse analysis = router.analysis()
-                    .analyze(new AIAnalysisRequest(transcript, timezone));
+                    .analyze(new AIAnalysisRequest(transcript, details.timezone(), details.language()));
             saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
@@ -137,6 +137,9 @@ public class JournalService {
         } catch (Exception e) {
             log.error("Transcript analysis failed: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, e.getMessage());
+            aiJobDlqService.enqueue(
+                    entryId, "ANALYSIS", classifyError(e), buildPayload(entryId, userId)
+            );
         }
     }
 
@@ -148,12 +151,8 @@ public class JournalService {
         log.info("Async pipeline started: entryId={}", entryId);
 
         try {
-            // 1. save audio file
+            // 1. transcribe — bytes stay in memory, never written to disk
             entryUpdater.updateStatus(entryId, EntryStatus.TRANSCRIBING);
-            String audioUrl = storageService.save(audioBytes, filename);
-            entryUpdater.setAudioUrl(entryId, audioUrl);
-
-            // 2. transcribe
             String transcript = router.transcription().transcribe(audioBytes, filename);
             if (transcript == null || transcript.strip().length() < 15) {
                 log.warn("Transcript too short ({}), marking failed: entryId={}",
@@ -165,14 +164,10 @@ public class JournalService {
             entryUpdater.setTranscript(entryId, transcript);
             entryUpdater.updateStatus(entryId, EntryStatus.ANALYZING);
 
-            // 3. delete audio immediately for privacy
-            storageService.delete(audioUrl);
-            entryUpdater.clearAudioUrl(entryId);
-
-            // 4. AI analysis
-            String timezone = getUserTimezone(userId);
+            // 2. AI analysis
+            UserDetails details = getUserDetails(userId);
             AIAnalysisResponse analysis = router.analysis()
-                    .analyze(new AIAnalysisRequest(transcript, timezone));
+                    .analyze(new AIAnalysisRequest(transcript, details.timezone(), details.language()));
 
             // 5. save analysis result
             saveAnalysisResult(entryId, userId, analysis);
@@ -185,6 +180,9 @@ public class JournalService {
         } catch (Exception e) {
             log.error("Async pipeline failed: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, e.getMessage());
+            aiJobDlqService.enqueue(
+                    entryId, "ANALYSIS", classifyError(e), buildPayload(entryId, userId)
+            );
         }
     }
 
@@ -247,12 +245,13 @@ public class JournalService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        double clampedScore = Math.max(0.0, Math.min(1.0, analysis.moodScore()));
         AnalysisResult result = AnalysisResult.builder()
                 .journalEntry(entry)
                 .user(user)
                 .entryDate(entry.getEntryDate())
                 .summary(analysis.summary())
-                .moodScore(BigDecimal.valueOf(analysis.moodScore()))
+                .moodScore(BigDecimal.valueOf(clampedScore))
                 .moodLabel(analysis.moodLabel())
                 .topics(analysis.topics())
                 .reflectiveQuestion(analysis.reflectiveQuestion())
@@ -286,9 +285,29 @@ public class JournalService {
         });
     }
 
-    private String getUserTimezone(UUID userId) {
+    private UserDetails getUserDetails(UUID userId) {
         return userRepository.findById(userId)
-                .map(User::getTimezone)
-                .orElse("UTC");
+                .map(u -> new UserDetails(u.getTimezone(), u.getPreferredLanguage()))
+                .orElse(new UserDetails("UTC", "tr"));
     }
+
+    private String classifyError(Exception e) {
+        String msg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+        if (msg.contains("timeout") || msg.contains("timed out")) {
+            return "TIMEOUT";
+        }
+        if (msg.contains("rate") || msg.contains("quota")) {
+            return "RATE_LIMITED";
+        }
+        if (e instanceof IllegalArgumentException) {
+            return "PARSE_ERROR";
+        }
+        return "SERVER_ERROR";
+    }
+
+    private String buildPayload(UUID entryId, UUID userId) {
+        return "{\"entryId\":\"" + entryId + "\",\"userId\":\"" + userId + "\"}";
+    }
+
+    private record UserDetails(String timezone, String language) {}
 }

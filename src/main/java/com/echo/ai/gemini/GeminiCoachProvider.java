@@ -68,13 +68,20 @@ public class GeminiCoachProvider implements AICoachProvider {
             Türkiye'de 7/24 ücretsiz: 182 (İntihar Önleme Hattı)"
             Sonra başka bir şey ekleme.
 
-            KURAL: Kullanıcının dilinde yanıt ver.
+            RULE: Always respond in {language}. Language codes: tr=Turkish, en=English.
             """;
+
+    private static String langName(String code) {
+        return "en".equals(code) ? "English" : "Turkish";
+    }
 
     private String buildInstruction(AICoachRequest request) {
         String name = (request.userName() != null && !request.userName().isBlank())
                 ? request.userName() : "kullanıcı";
-        var sb = new StringBuilder(BASE_INSTRUCTION.replace("{USER_NAME}", name));
+        String lang = request.language() != null ? request.language() : "tr";
+        var sb = new StringBuilder(BASE_INSTRUCTION
+                .replace("{USER_NAME}", name)
+                .replace("{language}", langName(lang)));
         if (request.moodContext() != null)
             sb.append("\nRUH HALİ: ").append(request.moodContext());
         if (request.recentTopics() != null && !request.recentTopics().isEmpty())

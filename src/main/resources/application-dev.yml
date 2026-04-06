@@ -1,0 +1,23 @@
+# ── Dev Profile ────────────────────────────────────────────────────────────────
+# Local development on Mac. Run with: mvn spring-boot:run -Dspring-boot.run.profiles=dev
+
+spring:
+  datasource:
+    url:      jdbc:postgresql://localhost:5432/echo_db
+    username: postgres
+    password: postgres
+
+app:
+  jwt:
+    access-token-expiry-seconds:  86400    # 24 hours — no need to keep re-logging in dev
+    refresh-token-expiry-seconds: 2592000  # 30 days
+
+  storage:
+    type: local
+
+  cors:
+    allowed-origins: "*"
+
+logging:
+  level:
+    com.echo: DEBUG

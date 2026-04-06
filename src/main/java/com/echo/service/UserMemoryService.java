@@ -4,12 +4,16 @@ import com.echo.ai.AISynthesisResponse;
 import com.echo.domain.user.UserProfileSummary;
 import com.echo.repository.UserProfileSummaryRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserMemoryService {
@@ -30,6 +34,12 @@ public class UserMemoryService {
     @Transactional
     public void updateFromSynthesis(UUID userId, AISynthesisResponse synthesis) {
         UserProfileSummary profile = getOrCreate(userId);
+        if (profile.getLastSynthesisAt() != null
+                && profile.getLastSynthesisAt().isAfter(OffsetDateTime.now().minusSeconds(5))) {
+            log.info("Skipping synthesis update — a more recent synthesis already applied: userId={}", userId);
+            return;
+        }
+
         if (synthesis.profileUpdate() != null) {
             AISynthesisResponse.ProfileUpdate pu = synthesis.profileUpdate();
             if (pu.userProfile()       != null) profile.setUserProfile(pu.userProfile());
@@ -62,6 +72,29 @@ public class UserMemoryService {
         if (growthTrajectory != null) profile.setGrowthTrajectory(growthTrajectory);
         if (weeklyDigest != null) profile.setWeeklyDigest(weeklyDigest);
         profile.setLastSynthesisAt(OffsetDateTime.now());
+        profileRepo.save(profile);
+    }
+
+    @Transactional
+    public void appendAchievementToMemory(UUID userId, String badgeKey, String badgeTitle,
+                                          int currentStreak, int totalEntries) {
+        UserProfileSummary profile = getOrCreate(userId);
+        String achievement = String.format(
+                "Earned '%s' badge on %s. (Streak: %d, Total entries: %d)",
+                badgeTitle, LocalDate.now(), currentStreak, totalEntries
+        );
+
+        String existing = profile.getGrowthTrajectory();
+        if (existing == null || existing.isBlank()) {
+            profile.setGrowthTrajectory(achievement);
+        } else {
+            String[] lines = existing.split("\n");
+            if (lines.length >= 10) {
+                existing = String.join("\n",
+                        Arrays.copyOfRange(lines, lines.length - 9, lines.length));
+            }
+            profile.setGrowthTrajectory(existing + "\n" + achievement);
+        }
         profileRepo.save(profile);
     }
 

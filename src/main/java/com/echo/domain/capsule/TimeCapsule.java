@@ -19,6 +19,7 @@ public class TimeCapsule {
     @Column(name = "content_type", length = 20) @Builder.Default private String contentType = "text";
     @Column(name = "audio_url") private String audioUrl;
     @Column(name = "audio_duration") private Integer audioDuration;
+    @Column(name = "source_journal_entry_id") private UUID sourceJournalEntryId;
     @Column(name = "sealed_at", nullable = false) private OffsetDateTime sealedAt;
     @Column(name = "unlock_at", nullable = false) private OffsetDateTime unlockAt;
     @Column(name = "opened_at") private OffsetDateTime openedAt;

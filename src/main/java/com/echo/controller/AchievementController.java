@@ -1,5 +1,6 @@
 package com.echo.controller;
 
+import com.echo.dto.response.AchievementDetailResponse;
 import com.echo.dto.response.AchievementsResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.AchievementService;
@@ -19,5 +20,12 @@ public class AchievementController {
     public ResponseEntity<AchievementsResponse> getAchievements(
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(achievementService.getAchievements(principal.getId()));
+    }
+
+    @GetMapping("/{badgeKey}")
+    public ResponseEntity<AchievementDetailResponse> getAchievementDetail(
+            @PathVariable String badgeKey,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(achievementService.getAchievementDetail(principal.getId(), badgeKey));
     }
 }

@@ -9,7 +9,8 @@ public record AICoachRequest(
         String              moodContext,
         List<String>        recentTopics,
         List<String>        activeGoals,
-        String              userName
+        String              userName,
+        String              language
 ) {
     public record ChatMessage(String role, String content) {}
 }

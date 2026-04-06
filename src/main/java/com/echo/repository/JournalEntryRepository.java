@@ -4,6 +4,7 @@ import com.echo.domain.journal.JournalEntry;
 import com.echo.domain.journal.EntryStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import org.springframework.data.domain.Pageable;
 
@@ -52,4 +53,12 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
              AND je.created_at < :stuckBefore
            """, nativeQuery = true)
     List<JournalEntry> findStuckEntries(OffsetDateTime stuckBefore);
+
+    @Query("""
+           SELECT je.transcript
+           FROM JournalEntry je
+           WHERE je.user.id = :userId
+             AND je.transcript IS NOT NULL
+           """)
+    List<String> findTranscriptsByUserId(@Param("userId") UUID userId);
 }

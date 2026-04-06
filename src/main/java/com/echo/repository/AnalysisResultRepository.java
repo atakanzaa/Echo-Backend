@@ -3,6 +3,7 @@ package com.echo.repository;
 import com.echo.domain.journal.AnalysisResult;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -34,4 +35,10 @@ public interface AnalysisResultRepository extends JpaRepository<AnalysisResult, 
 
     // batch load for N+1 elimination in journal list endpoints
     List<AnalysisResult> findByJournalEntryIdIn(List<UUID> journalEntryIds);
+
+    @Query("SELECT COUNT(ar) FROM AnalysisResult ar WHERE ar.user.id = :userId")
+    long countByUserId(@Param("userId") UUID userId);
+
+    @Query("SELECT COUNT(DISTINCT ar.entryDate) FROM AnalysisResult ar WHERE ar.user.id = :userId")
+    long countDistinctEntryDatesByUserId(@Param("userId") UUID userId);
 }

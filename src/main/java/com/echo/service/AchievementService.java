@@ -3,17 +3,25 @@ package com.echo.service;
 import com.echo.domain.achievement.BadgeDefinition;
 import com.echo.domain.achievement.UserAchievement;
 import com.echo.domain.user.User;
+import com.echo.dto.response.AchievementDetailResponse;
 import com.echo.dto.response.AchievementsResponse;
-import com.echo.repository.AnalysisResultRepository;
+import com.echo.event.AchievementEarnedEvent;
+import jakarta.persistence.EntityManager;
+import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserAchievementRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,11 +32,30 @@ public class AchievementService {
 
     private final UserRepository            userRepository;
     private final UserAchievementRepository userAchievementRepository;
-    private final AnalysisResultRepository  analysisResultRepository;
+    private final JournalEntryRepository    journalEntryRepository;
     private final AISynthesisService        synthesisService;
+    private final UserMemoryService         userMemoryService;
+    private final PlatformTransactionManager transactionManager;
+    private final EntityManager              entityManager;
+    private final ApplicationEventPublisher  eventPublisher;
 
-    @Transactional
     public void checkAndAward(UUID userId) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                transactionTemplate.executeWithoutResult(status -> doCheckAndAward(userId));
+                return;
+            } catch (OptimisticLockingFailureException e) {
+                log.warn("Optimistic lock conflict on checkAndAward, attempt {}/3: userId={}", attempt + 1, userId);
+                entityManager.clear();
+                if (attempt == 2) {
+                    log.error("checkAndAward failed after 3 attempts: userId={}", userId);
+                }
+            }
+        }
+    }
+
+    private void doCheckAndAward(UUID userId) {
         User user = userRepository.findById(userId).orElseThrow();
 
         // Streak hesapla
@@ -45,6 +72,16 @@ public class AchievementService {
                         .badgeKey(badge.name())
                         .build();
                 userAchievementRepository.save(achievement);
+                userMemoryService.appendAchievementToMemory(
+                        userId,
+                        badge.name(),
+                        badge.getTitle(),
+                        user.getCurrentStreak(),
+                        user.getTotalEntries()
+                );
+                eventPublisher.publishEvent(
+                        new AchievementEarnedEvent(userId, badge.name(), badge.getTitle(), badge.getEmoji())
+                );
                 log.info("Badge kazanıldı: userId={}, badge={}", userId, badge.name());
             }
         }
@@ -89,6 +126,52 @@ public class AchievementService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public AchievementDetailResponse getAchievementDetail(UUID userId, String badgeKey) {
+        User user = userRepository.findById(userId).orElseThrow();
+        BadgeDefinition badge = resolveBadge(badgeKey);
+
+        Optional<UserAchievement> earnedAchievement = userAchievementRepository.findByUserId(userId).stream()
+                .filter(a -> a.getBadgeKey().equals(badge.name()))
+                .findFirst();
+
+        return new AchievementDetailResponse(
+                badge.name(),
+                badge.getTitle(),
+                badge.getEmoji(),
+                badge.getDescription(),
+                badge.getCriteriaDescription(),
+                earnedAchievement.isPresent(),
+                earnedAchievement.map(a -> a.getEarnedAt().toString()).orElse(null),
+                badge.getProgress(user),
+                generateShareText(badge.name())
+        );
+    }
+
+    public String generateShareText(String badgeKey) {
+        BadgeDefinition badge = resolveBadge(badgeKey);
+        return switch (badge) {
+            case FIRST_ENTRY ->
+                    "I just started my journaling journey on Echo! Taking the first step toward self-reflection. "
+                            + "👣 #Echo #FirstSteps";
+            case SEVEN_DAY_STREAK ->
+                    "7 days of consistent journaling on Echo! Building a habit, one entry at a time. "
+                            + "👑 #Echo #ConsistencyKing";
+            case THIRTY_DAY_STREAK ->
+                    "30 days strong on Echo! Consistency is becoming a lifestyle. "
+                            + "🏆 #Echo #MonthlyMaster";
+            case MOOD_EXPLORER ->
+                    "I unlocked Mood Explorer on Echo by reflecting across 10 entries. "
+                            + "🎯 #Echo #MoodExplorer";
+            case SELF_REFLECTION_MASTER ->
+                    "Self-Reflection Master unlocked on Echo. Growth happens one honest entry at a time. "
+                            + "🌟 #Echo #SelfReflection";
+            case ZEN_MASTER ->
+                    "Zen Master achieved on Echo! Long-term consistency pays off. "
+                            + "☮️ #Echo #ZenMaster";
+        };
+    }
+
     private void updateStreak(User user) {
         LocalDate today     = LocalDate.now();
         LocalDate yesterday = today.minusDays(1);
@@ -112,14 +195,10 @@ public class AchievementService {
     }
 
     private int estimateTotalWords(UUID userId) {
-        return analysisResultRepository
-                .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
-                        userId,
-                        LocalDate.now().minusDays(365),
-                        LocalDate.now())
-                .stream()
-                .mapToInt(r -> r.getSummary() != null
-                        ? r.getSummary().split("\\s+").length * 10 : 0)
+        return journalEntryRepository.findTranscriptsByUserId(userId).stream()
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .mapToInt(transcript -> transcript.split("\\s+").length)
                 .sum();
     }
 
@@ -151,6 +230,14 @@ public class AchievementService {
         if (user.getCurrentStreak() >= 7) return "Harika gidiyorsun! 🔥";
         if (user.getCurrentStreak() >= 3) return "Güzel bir ivme yakaladın, devam et!";
         return "Bugün başla, küçük adımlar büyük fark yaratır.";
+    }
+
+    private BadgeDefinition resolveBadge(String badgeKey) {
+        try {
+            return BadgeDefinition.valueOf(badgeKey.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Invalid badge key: " + badgeKey);
+        }
     }
 
     private record GrowthAssessment(int score, String label, String message) {}

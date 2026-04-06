@@ -8,7 +8,10 @@ public record AIInsightsResponse(
         String moodTrend,
         List<Theme>      themes,
         List<Suggestion> suggestions,
-        double emotionalTrend
+        double emotionalTrend,
+        boolean hasSufficientData,
+        boolean hasPreviousPeriodData,
+        int     entryCount
 ) {
     public record Theme(String tag, int count, boolean trending) {}
     public record Suggestion(String title, String body, String icon) {}

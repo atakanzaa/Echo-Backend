@@ -72,6 +72,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
                 "messages", List.of(
                         Map.of("role", "system", "content", SYSTEM_PROMPT),
                         Map.of("role", "user", "content",
+                               "Respond in " + langName(request.language()) + ". " +
                                "Analyze this journal entry: " + request.transcript())
                 )
         );
@@ -97,6 +98,10 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
         Map<?, ?> choice  = (Map<?, ?>) choices.get(0);
         Map<?, ?> message = (Map<?, ?>) choice.get("message");
         return (String) message.get("content");
+    }
+
+    private static String langName(String code) {
+        return "en".equals(code) ? "English" : "Turkish";
     }
 
     private AIAnalysisResponse analyzeFallback(AIAnalysisRequest request, Throwable ex) {

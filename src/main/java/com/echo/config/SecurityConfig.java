@@ -1,6 +1,7 @@
 package com.echo.config;
 
 import com.echo.security.JwtAuthenticationFilter;
+import com.echo.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +28,7 @@ import com.echo.security.UserDetailsServiceImpl;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
     private final UserDetailsServiceImpl  userDetailsService;
 
     @Bean
@@ -41,11 +43,12 @@ public class SecurityConfig {
                     "/api/v1/auth/refresh",
                     "/api/v1/auth/logout").permitAll()
                 .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
-                .requestMatchers("/api/v1/health", "/actuator/health").permitAll()
+                .requestMatchers("/api/v1/health", "/actuator/health/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/app/config").permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

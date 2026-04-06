@@ -4,7 +4,6 @@ import com.echo.domain.journal.EntryStatus;
 import com.echo.domain.journal.JournalEntry;
 import com.echo.repository.JournalEntryRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,22 +22,6 @@ public class JournalEntryUpdater {
     public void updateStatus(UUID entryId, EntryStatus status) {
         journalEntryRepository.findById(entryId).ifPresent(e -> {
             e.setStatus(status);
-            journalEntryRepository.save(e);
-        });
-    }
-
-    @Transactional
-    public void setAudioUrl(UUID entryId, String audioUrl) {
-        journalEntryRepository.findById(entryId).ifPresent(e -> {
-            e.setAudioUrl(audioUrl);
-            journalEntryRepository.save(e);
-        });
-    }
-
-    @Transactional
-    public void clearAudioUrl(UUID entryId) {
-        journalEntryRepository.findById(entryId).ifPresent(e -> {
-            e.setAudioUrl(null);
             journalEntryRepository.save(e);
         });
     }

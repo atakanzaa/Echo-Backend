@@ -54,7 +54,7 @@ public class TimeCapsuleService {
             throw new CapsuleStillLockedException(
                     "Bu kapsül " + capsule.getUnlockAt() + " tarihine kadar kilitli");
         }
-        if ("sealed".equals(capsule.getStatus())) {
+        if (!"opened".equals(capsule.getStatus())) {
             capsule.setStatus("opened");
             capsule.setOpenedAt(OffsetDateTime.now());
             timeCapsuleRepository.save(capsule);

@@ -63,8 +63,9 @@ public class CommunityController {
             @RequestParam(value = "content", required = false) String content,
             @RequestParam(value = "emoji", required = false) String emoji,
             @RequestParam(value = "isAnonymous", defaultValue = "false") boolean isAnonymous,
+            @RequestParam(value = "badgeKey", required = false) String badgeKey,
             @AuthenticationPrincipal UserPrincipal principal) {
-        CreatePostRequest request = new CreatePostRequest(content, "image", emoji, isAnonymous);
+        CreatePostRequest request = new CreatePostRequest(content, "image", emoji, isAnonymous, badgeKey);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(communityService.createPost(principal.getId(), request, image));
     }

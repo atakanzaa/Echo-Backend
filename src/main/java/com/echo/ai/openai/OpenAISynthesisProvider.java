@@ -40,52 +40,55 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
 
     private static final String CHAT_URL = "https://api.openai.com/v1/chat/completions";
 
-    private static final String SYSTEM_PROMPT = """
-            Sen Echo uygulamasının AI analiz ve hafıza motorusun.
-            Kullanıcının günlük girişleri, coach konuşmaları, hedefleri, istatistikleri
-            ve mevcut profili sana veriliyor. Bu verileri analiz ederek sentez üret.
+    private static final String SYSTEM_PROMPT_TEMPLATE = """
+            You are the AI analysis and memory engine of the Echo app.
+            The user's journal entries, coach conversations, goals, stats, and current profile are provided.
+            Analyze this data and produce a synthesis.
 
-            SADECE geçerli JSON döndür. Açıklama, markdown veya ek metin ekleme.
-            Bilgi yetersizse null döndür, bilgi UYDURMA.
+            Return ONLY valid JSON. No explanation, markdown, or extra text.
+            If data is insufficient, return null — do NOT fabricate information.
 
-            JSON Formatı:
+            JSON Format:
             {
-              "narrative_summary": "3-5 cümle, kullanıcının bu döneme ait hikayesi",
-              "suggestions": [{"title": "...", "body": "...", "icon": "SF Symbol adı"}],
-              "emotional_assessment": "1-2 cümle duygusal durum",
+              "narrative_summary": "3-5 sentence story of the user's period",
+              "suggestions": [{"title": "...", "body": "...", "icon": "SF Symbol name"}],
+              "emotional_assessment": "1-2 sentence emotional state",
               "growth_score": 0-100,
-              "growth_label": "Türkçe gelişim etiketi",
-              "growth_message": "1-2 cümle motivasyon",
-              "weekly_themes": ["tema1", "tema2"],
-              "coach_insight": "coach konuşmasından 1 insight veya null",
+              "growth_label": "short growth label",
+              "growth_message": "1-2 sentence motivational message",
+              "weekly_themes": ["theme1", "theme2"],
+              "coach_insight": "1 insight from coach conversation or null",
               "profile_update": {
-                "user_profile": "kullanıcının genel profili (2-3 cümle)",
-                "emotional_patterns": "tekrarlayan duygusal kalıplar",
-                "values_strengths": "değerler ve güçlü yönler",
-                "growth_trajectory": "gelişim yörüngesi (1 cümle)"
+                "user_profile": "general user profile (2-3 sentences)",
+                "emotional_patterns": "recurring emotional patterns",
+                "values_strengths": "values and strengths",
+                "growth_trajectory": "growth trajectory (1 sentence)"
               }
             }
 
-            KURALLAR:
-            - Türkçe yanıt ver
-            - suggestions max 3, spesifik ve uygulanabilir olsun
-            - growth_score: 0=ilerleme yok, 50=düzenli, 80+=önemli gelişim
-            - narrative_summary: istatistik DEĞİL, hikaye anlat
-            - coach_insight: coach konuşması yoksa null bırak
-            - profile_update: mevcut profili GELİŞTİR, silme veya sıfırlama yapma
-            - Bilgi yetersizse ilgili alanı null yap, TAHMIN ETME
+            RULES:
+            - Respond entirely in {language}
+            - suggestions max 3, specific and actionable
+            - growth_score: 0=no progress, 50=consistent, 80+=significant growth
+            - narrative_summary: tell a story, NOT statistics
+            - coach_insight: null if no coach conversations
+            - profile_update: IMPROVE the existing profile, do not erase or reset
+            - If data is insufficient, set field to null — do NOT guess
             """;
 
     @Override
     @CircuitBreaker(name = "openai-synthesis", fallbackMethod = "synthesizeFallback")
     public AISynthesisResponse synthesize(AISynthesisRequest request) {
+        String lang = request.language() != null ? request.language() : "tr";
+        String systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace("{language}", langName(lang));
+
         Map<String, Object> requestBody = Map.of(
                 "model",           props.getAi().getOpenai().getAnalysisModel(),
                 "max_tokens",      1000,
                 "temperature",     0.3,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(
-                        Map.of("role", "system", "content", SYSTEM_PROMPT),
+                        Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user",   "content", buildUserMessage(request))
                 )
         );
@@ -102,6 +105,10 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
         String raw = extractContent(response.getBody());
         log.debug("OpenAI synthesis yanıtı alındı, parse ediliyor");
         return parseResponse(raw);
+    }
+
+    private static String langName(String code) {
+        return "en".equals(code) ? "English" : "Turkish";
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
