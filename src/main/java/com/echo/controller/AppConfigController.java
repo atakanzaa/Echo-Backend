@@ -39,7 +39,8 @@ public class AppConfigController {
                 "ai_disclaimer",         buildAiDisclaimer(),
                 "crisis_resources",      buildCrisisResources(),
                 "ai_training_consent_required", true,
-                "kvkk_consent_required", true
+                "kvkk_consent_required", true,
+                "ads", buildAdsConfig()
         ));
     }
 
@@ -59,6 +60,18 @@ public class AppConfigController {
                 "name", CRISIS_LINE_NAME,
                 "availability", "7/24",
                 "cost", "Ücretsiz"
+        );
+    }
+
+    private Map<String, Object> buildAdsConfig() {
+        return Map.of(
+                "enabled", true,
+                "placements", Map.of(
+                        "communityFeed", Map.of("enabled", true, "frequency", 5),
+                        "homeBanner", Map.of("enabled", true),
+                        "postAnalysisInterstitial", Map.of("enabled", true),
+                        "profileBanner", Map.of("enabled", true)
+                )
         );
     }
 }

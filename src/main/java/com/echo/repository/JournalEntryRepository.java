@@ -61,4 +61,37 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
              AND je.transcript IS NOT NULL
            """)
     List<String> findTranscriptsByUserId(@Param("userId") UUID userId);
+
+    @Query(value = """
+           SELECT COALESCE(SUM(array_length(regexp_split_to_array(transcript, '\\s+'), 1)), 0)
+           FROM journal_entries
+           WHERE user_id = :userId AND transcript IS NOT NULL AND transcript != ''
+           """, nativeQuery = true)
+    long countTotalWordsByUserId(@Param("userId") UUID userId);
+
+    @Query(value = """
+           SELECT COALESCE(SUM(array_length(regexp_split_to_array(transcript, '\\s+'), 1)), 0)
+           FROM journal_entries
+           WHERE user_id = :userId AND transcript IS NOT NULL AND transcript != ''
+           """, nativeQuery = true)
+    long countTotalWordsForStats(@Param("userId") UUID userId);
+
+    @Query(value = """
+           SELECT COUNT(*)
+           FROM journal_entries
+           WHERE user_id = :userId AND transcript IS NOT NULL AND transcript != ''
+           """, nativeQuery = true)
+    long countEntriesWithTranscript(@Param("userId") UUID userId);
+
+    @Query(value = """
+           SELECT je.recorded_at
+           FROM journal_entries je
+           WHERE je.user_id = :userId
+             AND je.entry_date BETWEEN :startDate AND :endDate
+             AND je.status = 'complete'
+             AND je.recorded_at IS NOT NULL
+           """, nativeQuery = true)
+    List<java.sql.Timestamp> findRecordedAtByUserAndDateRange(@Param("userId") UUID userId,
+                                                               @Param("startDate") LocalDate startDate,
+                                                               @Param("endDate") LocalDate endDate);
 }

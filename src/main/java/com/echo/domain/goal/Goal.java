@@ -63,6 +63,15 @@ public class Goal {
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
 
+    @Column(name = "completed_source_type", length = 20)
+    private String completedSourceType;
+
+    @Column(name = "completed_source_ref_id")
+    private UUID completedSourceRefId;
+
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

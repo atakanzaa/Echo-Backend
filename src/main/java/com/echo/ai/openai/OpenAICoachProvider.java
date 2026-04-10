@@ -96,7 +96,7 @@ public class OpenAICoachProvider implements AICoachProvider {
         for (var msg : request.history()) {
             messages.add(Map.of("role", msg.role(), "content", msg.content()));
         }
-        messages.add(Map.of("role", "user", "content", request.userMessage()));
+        messages.add(Map.of("role", "user", "content", sanitizeUserInput(request.userMessage())));
 
         Map<String, Object> requestBody = Map.of(
                 "model", props.getAi().getOpenai().getCoachModel(),
@@ -117,7 +117,7 @@ public class OpenAICoachProvider implements AICoachProvider {
         Map<?, ?> body = response.getBody();
         List<?> choices = (List<?>) body.get("choices");
         if (choices == null || choices.isEmpty()) {
-            throw new RuntimeException("OpenAI boş choices döndürdü: " + body);
+            throw new RuntimeException("OpenAI returned empty choices: " + body);
         }
         Map<?, ?> choice  = (Map<?, ?>) choices.get(0);
         Map<?, ?> message = (Map<?, ?>) choice.get("message");
@@ -125,8 +125,18 @@ public class OpenAICoachProvider implements AICoachProvider {
     }
 
     private AICoachResponse chatFallback(AICoachRequest request, Throwable ex) {
-        log.error("OpenAI coach devre dışı (circuit open): {}", ex.getMessage());
-        throw new ServiceUnavailableException(
-                "AI koç servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
+        log.error("OpenAI coach circuit open: {}", ex.getMessage());
+        throw new ServiceUnavailableException("AI coach service is temporarily unavailable.", ex);
+    }
+
+    /** Strips known prompt injection vectors from user coach messages. */
+    private String sanitizeUserInput(String input) {
+        if (input == null) return "";
+        return input
+                .replaceAll("(?i)</?SYSTEM>", "")
+                .replaceAll("(?i)ignore (all )?previous instructions?", "[filtered]")
+                .replaceAll("(?i)you are now", "[filtered]")
+                .replaceAll("(?i)\\bact as\\b(?! (a user|the user))", "[filtered]")
+                .replaceAll("(?i)\\bnew instructions?\\b", "[filtered]");
     }
 }

@@ -16,7 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -44,9 +43,13 @@ public class CoachController {
     }
 
     @GetMapping("/sessions/{sessionId}/messages")
-    public ResponseEntity<List<CoachMessageResponse>> getMessages(
-            @PathVariable UUID sessionId, @AuthenticationPrincipal UserPrincipal p) {
-        return ResponseEntity.ok(coachService.getMessages(sessionId, p.getId()));
+    public ResponseEntity<PagedResponse<CoachMessageResponse>> getMessages(
+            @PathVariable UUID sessionId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @AuthenticationPrincipal UserPrincipal p) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(coachService.getMessages(sessionId, p.getId(), pageable));
     }
 
     @PostMapping("/sessions/{sessionId}/messages")
@@ -58,7 +61,7 @@ public class CoachController {
                 .body(coachService.sendMessage(sessionId, p.getId(), request));
     }
 
-    /** iOS, kullanıcı coach ekranından ayrıldığında çağırır — soft-close + async bellek güncelleme */
+    /** iOS calls this when the user leaves the coach screen — soft-close + async memory update */
     @PostMapping("/sessions/{sessionId}/end")
     public ResponseEntity<Void> endSession(
             @PathVariable UUID sessionId, @AuthenticationPrincipal UserPrincipal p) {

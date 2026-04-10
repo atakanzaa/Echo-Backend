@@ -1,6 +1,7 @@
 package com.echo.controller;
 
 import com.echo.dto.request.LoginRequest;
+import com.echo.dto.request.GoogleLoginRequest;
 import com.echo.dto.request.RefreshTokenRequest;
 import com.echo.dto.request.RegisterRequest;
 import com.echo.dto.response.AuthResponse;
@@ -29,6 +30,11 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        return ResponseEntity.ok(authService.loginWithGoogle(request));
     }
 
     @PostMapping("/refresh")

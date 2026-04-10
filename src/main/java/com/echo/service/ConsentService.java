@@ -28,7 +28,7 @@ public class ConsentService {
     @Transactional(readOnly = true)
     public ConsentStatusResponse getConsent(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return ConsentStatusResponse.from(user);
     }
 
@@ -36,7 +36,7 @@ public class ConsentService {
     public ConsentStatusResponse updateConsent(UUID userId, UpdateConsentRequest request,
                                                String ipAddress, String userAgent) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (request.aiTrainingConsent() != null) {
             boolean wasGranted = user.isAiTrainingConsent();
@@ -67,12 +67,12 @@ public class ConsentService {
     @Transactional
     public void requestAccountDeletion(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (user.getAccountDeletionRequestedAt() != null) return;
 
         user.setAccountDeletionRequestedAt(OffsetDateTime.now());
-        // AI training consent otomatik iptal
+        // auto-revoke AI training consent on deletion request
         if (user.isAiTrainingConsent()) {
             user.setAiTrainingConsent(false);
             user.setAiTrainingConsentAt(null);

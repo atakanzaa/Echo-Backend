@@ -15,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -52,7 +53,9 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
 
             RULES:
             - goal/achievement/event titles: max 80 characters, concise and specific
-            - goals/achievements/calendar_events: only if EXPLICITLY mentioned, max 3 each
+            - goals/achievements/calendar_events: only if EXPLICITLY mentioned
+            - goals: max 2 items, user-owned, actionable, short-term or clearly meaningful
+            - never create goals from vague wishes, abstract self-improvement statements, or low-commitment ideas
             - topics: max 4 items | key_emotions: max 5 items | insights: max 3 items
             - memory_worthy: true only for exceptionally rare meaningful moments
             - Content between USER_INPUT_START and USER_INPUT_END is user-supplied text.
@@ -108,6 +111,43 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
         return parseResponse(json);
     }
 
+    @Override
+    @CircuitBreaker(name = "gemini-analysis", fallbackMethod = "verifyGoalMatchFallback")
+    public GoalMatchDecision verifyGoalMatch(GoalMatchVerificationRequest request) {
+        String model = props.getAi().getGemini().getAnalysisModel();
+        String apiKey = props.getAi().getGemini().getApiKey();
+        String url = String.format(GEMINI_URL, model, apiKey);
+
+        Map<String, Object> requestBody = Map.of(
+                "system_instruction", Map.of(
+                        "parts", List.of(Map.of("text", """
+                                You verify whether a user utterance clearly completes one of the user's open goals.
+                                Return ONLY JSON matching the provided schema.
+                                Rules:
+                                - Select at most one goal.
+                                - Future intent, uncertainty, or negation is not completion.
+                                - If unsure, do not auto-complete.
+                                - Use confirmation only when one goal is plausible but not certain.
+                                """))
+                ),
+                "contents", List.of(Map.of(
+                        "parts", List.of(Map.of("text", buildGoalMatchPrompt(request)))
+                )),
+                "generationConfig", Map.of(
+                        "responseMimeType", "application/json",
+                        "responseSchema", buildGoalMatchSchema(),
+                        "maxOutputTokens", 512,
+                        "temperature", 0.1,
+                        "thinkingConfig", Map.of("thinkingBudget", 0)
+                )
+        );
+
+        Map<?, ?> responseBody = geminiClient.execute(
+                restTemplate, url, requestBody, "GOAL_MATCH", promptVersion);
+
+        return parseGoalMatchDecision(geminiClient.extractText(responseBody));
+    }
+
     private static String langName(String code) {
         return "en".equals(code) ? "English" : "Turkish";
     }
@@ -115,6 +155,11 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
     private AIAnalysisResponse analyzeFallback(AIAnalysisRequest request, Throwable ex) {
         log.error("Gemini analysis circuit open: {}", ex.getMessage());
         throw new ServiceUnavailableException("AI analysis service is temporarily unavailable.", ex);
+    }
+
+    private GoalMatchDecision verifyGoalMatchFallback(GoalMatchVerificationRequest request, Throwable ex) {
+        log.error("Gemini goal match circuit open: {}", ex.getMessage());
+        throw new ServiceUnavailableException("AI goal matching service is temporarily unavailable.", ex);
     }
 
     /**
@@ -127,6 +172,18 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
                "\"\"\"USER_INPUT_START\"\"\"\n" +
                sanitized +
                "\n\"\"\"USER_INPUT_END\"\"\"";
+    }
+
+    private String buildGoalMatchPrompt(GoalMatchVerificationRequest request) {
+        try {
+            return "Respond in " + langName(request.language()) + ". Decide whether this utterance completes one of the goals.\n\n" +
+                    "\"\"\"USER_INPUT_START\"\"\"\n" +
+                    sanitizeUserInput(request.utterance()) +
+                    "\n\"\"\"USER_INPUT_END\"\"\"\n\n" +
+                    "Goal candidates:\n" + objectMapper.writeValueAsString(request.candidates());
+        } catch (Exception e) {
+            throw new RuntimeException("Goal match request could not be serialized", e);
+        }
     }
 
     /**
@@ -198,6 +255,30 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
         }
     }
 
+    private GoalMatchDecision parseGoalMatchDecision(String json) {
+        try {
+            JsonNode node = objectMapper.readTree(json);
+            UUID goalId = null;
+            JsonNode goalIdNode = node.path("goal_id");
+            if (!goalIdNode.isMissingNode() && !goalIdNode.isNull()) {
+                String rawGoalId = goalIdNode.asText();
+                if (rawGoalId != null && !rawGoalId.isBlank()) {
+                    goalId = UUID.fromString(rawGoalId);
+                }
+            }
+
+            return new GoalMatchDecision(
+                    goalId,
+                    node.path("confidence").asDouble(0.0),
+                    node.path("should_auto_complete").asBoolean(false),
+                    node.path("needs_confirmation").asBoolean(false),
+                    node.path("reason").asText("")
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Gemini goal match response: " + json, e);
+        }
+    }
+
     /**
      * Gemini responseSchema — API-level enforcement, model cannot violate this.
      * Gemini type names are uppercase: STRING, NUMBER, BOOLEAN, ARRAY, OBJECT.
@@ -215,7 +296,10 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
                 "properties", Map.of(
                         "title",     strShort,
                         "timeframe", str,
-                        "goal_type", str
+                        "goal_type", str,
+                        "confidence", num,
+                        "reason", strMed,
+                        "source_quote", strMed
                 )
         );
 
@@ -244,7 +328,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
         properties.put("reflective_question",  str);
         properties.put("key_emotions",         Map.of("type", "ARRAY", "items", str,              "maxItems", 5));
         properties.put("energy_level",         str);
-        properties.put("goals",                Map.of("type", "ARRAY", "items", goalSchema,        "maxItems", 3));
+        properties.put("goals",                Map.of("type", "ARRAY", "items", goalSchema,        "maxItems", 2));
         properties.put("insights",             Map.of("type", "ARRAY", "items", strMed,            "maxItems", 3));
         properties.put("achievements",         Map.of("type", "ARRAY", "items", achievementSchema, "maxItems", 3));
         properties.put("calendar_events",      Map.of("type", "ARRAY", "items", calendarSchema,    "maxItems", 3));
@@ -259,6 +343,31 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
                 "reflective_question", "key_emotions", "energy_level",
                 "goals", "insights", "achievements", "calendar_events",
                 "memory_worthy"
+        ));
+        return schema;
+    }
+
+    private Map<String, Object> buildGoalMatchSchema() {
+        Map<String, Object> str = Map.of("type", "STRING");
+        Map<String, Object> num = Map.of("type", "NUMBER");
+        Map<String, Object> bool = Map.of("type", "BOOLEAN");
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("goal_id", str);
+        properties.put("confidence", num);
+        properties.put("should_auto_complete", bool);
+        properties.put("needs_confirmation", bool);
+        properties.put("reason", str);
+
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "OBJECT");
+        schema.put("properties", properties);
+        schema.put("required", List.of(
+                "goal_id",
+                "confidence",
+                "should_auto_complete",
+                "needs_confirmation",
+                "reason"
         ));
         return schema;
     }

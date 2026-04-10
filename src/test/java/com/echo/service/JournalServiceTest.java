@@ -7,11 +7,13 @@ import com.echo.dto.response.JournalEntryResponse;
 import com.echo.exception.ResourceNotFoundException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.JournalEntryRepository;
+import com.echo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
@@ -29,8 +31,13 @@ class JournalServiceTest {
 
     @Mock JournalEntryRepository  journalEntryRepository;
     @Mock AnalysisResultRepository analysisResultRepository;
-    @Mock StorageService           storageService;
+    @Mock UserRepository           userRepository;
+    @Mock com.echo.ai.AIProviderRouter router;
     @Mock AchievementService       achievementService;
+    @Mock ApplicationEventPublisher eventPublisher;
+    @Mock AiJobDlqService          aiJobDlqService;
+    @Mock JournalEntryUpdater      entryUpdater;
+    @Mock EntitlementService       entitlementService;
 
     @InjectMocks JournalService journalService;
 
@@ -51,7 +58,7 @@ class JournalServiceTest {
         // given
         UUID userId  = UUID.randomUUID();
         JournalEntry entry = buildEntry(userId);
-        given(journalEntryRepository.findById(entry.getId())).willReturn(Optional.of(entry));
+        given(journalEntryRepository.findByIdAndUserId(entry.getId(), userId)).willReturn(Optional.of(entry));
         given(analysisResultRepository.findByJournalEntryId(entry.getId())).willReturn(Optional.empty());
 
         // when
@@ -68,7 +75,7 @@ class JournalServiceTest {
         UUID userId  = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         JournalEntry entry = buildEntry(ownerId);
-        given(journalEntryRepository.findById(entry.getId())).willReturn(Optional.of(entry));
+        given(journalEntryRepository.findByIdAndUserId(entry.getId(), userId)).willReturn(Optional.empty());
 
         // when / then
         assertThatThrownBy(() -> journalService.getEntry(entry.getId(), userId))
@@ -82,7 +89,7 @@ class JournalServiceTest {
         LocalDate date = LocalDate.now();
         JournalEntry entry = buildEntry(userId);
         given(journalEntryRepository.findByUserIdAndEntryDateOrderByRecordedAtDesc(userId, date)).willReturn(List.of(entry));
-        given(analysisResultRepository.findByJournalEntryId(entry.getId())).willReturn(Optional.empty());
+        given(analysisResultRepository.findByJournalEntryIdIn(List.of(entry.getId()))).willReturn(List.of());
 
         // when
         var responses = journalService.getByDate(userId, date);
@@ -98,7 +105,7 @@ class JournalServiceTest {
         JournalEntry e1 = buildEntry(userId);
         JournalEntry e2 = buildEntry(userId);
         given(journalEntryRepository.findByUserIdOrderByRecordedAtDesc(eq(userId), any(Pageable.class))).willReturn(List.of(e1, e2));
-        given(analysisResultRepository.findByJournalEntryId(any())).willReturn(Optional.empty());
+        given(analysisResultRepository.findByJournalEntryIdIn(List.of(e1.getId(), e2.getId()))).willReturn(List.of());
 
         // when
         var responses = journalService.getRecent(userId, 5);

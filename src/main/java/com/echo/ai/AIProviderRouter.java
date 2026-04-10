@@ -192,13 +192,27 @@ public class AIProviderRouter {
     }
 
     private AIAnalysisProvider wrappedAnalysis(AIAnalysisProvider primary, String primaryName) {
-        return request -> {
-            try {
-                return primary.analyze(request);
-            } catch (ServiceUnavailableException e) {
-                log.warn("ai_fallback op=ANALYSIS primary={} switching_to=openai reason={}",
-                         primaryName, e.getMessage());
-                return openAIAnalysis.analyze(request);
+        return new AIAnalysisProvider() {
+            @Override
+            public AIAnalysisResponse analyze(AIAnalysisRequest request) {
+                try {
+                    return primary.analyze(request);
+                } catch (ServiceUnavailableException e) {
+                    log.warn("ai_fallback op=ANALYSIS primary={} switching_to=openai reason={}",
+                            primaryName, e.getMessage());
+                    return openAIAnalysis.analyze(request);
+                }
+            }
+
+            @Override
+            public GoalMatchDecision verifyGoalMatch(GoalMatchVerificationRequest request) {
+                try {
+                    return primary.verifyGoalMatch(request);
+                } catch (ServiceUnavailableException e) {
+                    log.warn("ai_fallback op=GOAL_MATCH primary={} switching_to=openai reason={}",
+                            primaryName, e.getMessage());
+                    return openAIAnalysis.verifyGoalMatch(request);
+                }
             }
         };
     }

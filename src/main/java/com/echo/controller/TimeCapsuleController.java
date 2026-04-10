@@ -1,17 +1,19 @@
 package com.echo.controller;
 
 import com.echo.dto.request.CreateCapsuleRequest;
+import com.echo.dto.response.PagedResponse;
 import com.echo.dto.response.TimeCapsuleResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.TimeCapsuleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,8 +23,12 @@ public class TimeCapsuleController {
     private final TimeCapsuleService timeCapsuleService;
 
     @GetMapping
-    public ResponseEntity<List<TimeCapsuleResponse>> getCapsules(@AuthenticationPrincipal UserPrincipal p) {
-        return ResponseEntity.ok(timeCapsuleService.getCapsules(p.getId()));
+    public ResponseEntity<PagedResponse<TimeCapsuleResponse>> getCapsules(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UserPrincipal p) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(timeCapsuleService.getCapsules(p.getId(), pageable));
     }
 
     @PostMapping

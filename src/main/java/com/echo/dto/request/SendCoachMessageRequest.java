@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 
 public record SendCoachMessageRequest(
         @NotBlank
-        @Size(max = 500, message = "Mesaj en fazla 500 karakter olabilir")
+        @Size(max = 500, message = "Message must be 500 characters or fewer")
         String content,
         String role
 ) {}

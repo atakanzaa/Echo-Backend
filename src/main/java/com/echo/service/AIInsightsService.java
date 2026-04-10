@@ -1,8 +1,10 @@
 package com.echo.service;
 
 import com.echo.domain.journal.AnalysisResult;
+import com.echo.domain.subscription.FeatureKey;
 import com.echo.dto.response.AIInsightsResponse;
 import com.echo.dto.response.InsightsPeriodEligibilityResponse;
+import com.echo.exception.QuotaExceededException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class AIInsightsService {
     private final AnalysisResultRepository analysisResultRepository;
     private final AISynthesisService       synthesisService;
     private final UserRepository           userRepository;
+    private final EntitlementService       entitlementService;
 
     @Transactional(readOnly = true)
     public InsightsPeriodEligibilityResponse getEligibility(UUID userId) {
@@ -48,6 +51,14 @@ public class AIInsightsService {
 
     @Transactional(readOnly = true)
     public AIInsightsResponse getInsights(UUID userId, int periodDays) {
+        int maxPeriod = entitlementService.getLimit(userId, FeatureKey.INSIGHTS_MAX_PERIOD);
+        if (maxPeriod != -1 && periodDays > maxPeriod) {
+            throw new QuotaExceededException(
+                    "INSIGHTS_PERIOD_LOCKED",
+                    "Requested insights period is locked for your tier. Upgrade to Premium for longer periods."
+            );
+        }
+
         PeriodUnlockRule rule = getRule(periodDays);
         int totalEntries = toInt(analysisResultRepository.countByUserId(userId));
         int totalDistinctDays = toInt(analysisResultRepository.countDistinctEntryDatesByUserId(userId));

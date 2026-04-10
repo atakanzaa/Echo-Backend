@@ -3,7 +3,9 @@ package com.echo.service;
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.journal.MoodCategory;
 import com.echo.domain.journal.SummaryPeriod;
+import com.echo.domain.subscription.FeatureKey;
 import com.echo.dto.response.SummaryResponse;
+import com.echo.exception.QuotaExceededException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,9 +28,18 @@ public class SummaryService {
     private final AnalysisResultRepository analysisResultRepository;
     private final AISynthesisService       synthesisService;
     private final UserRepository           userRepository;
+    private final EntitlementService       entitlementService;
 
     @Transactional(readOnly = true)
     public SummaryResponse getSummary(UUID userId, SummaryPeriod period, LocalDate endDate) {
+        int maxPeriod = entitlementService.getLimit(userId, FeatureKey.SUMMARY_MAX_PERIOD);
+        if (maxPeriod != -1 && period.getDays() > maxPeriod) {
+            throw new QuotaExceededException(
+                    "SUMMARY_PERIOD_LOCKED",
+                    "Requested summary period is locked for your tier. Upgrade to Premium for longer periods."
+            );
+        }
+
         LocalDate startDate = endDate.minusDays(period.getDays() - 1);
         List<AnalysisResult> results = analysisResultRepository
                 .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(userId, startDate, endDate);

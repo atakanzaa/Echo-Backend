@@ -12,5 +12,12 @@ public record AIGoal(
         String timeframe,
 
         @JsonProperty("goal_type")
-        String goalType
+        String goalType,
+
+        Double confidence,
+
+        String reason,
+
+        @JsonProperty("source_quote")
+        String sourceQuote
 ) {}

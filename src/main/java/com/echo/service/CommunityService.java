@@ -59,9 +59,7 @@ public class CommunityService {
     }
 
     private Page<CommunityPost> getFollowingFeed(UUID userId, Pageable pageable) {
-        List<UUID> followingIds = followRepository.findByFollowerId(userId).stream()
-                .map(f -> f.getFollowing().getId())
-                .collect(Collectors.toList());
+        List<UUID> followingIds = followRepository.findFollowingIdsByFollowerId(userId);
         if (followingIds.isEmpty()) return Page.empty(pageable);
         return communityPostRepository.findByPublicPostTrueAndUserIdInOrderByCreatedAtDesc(followingIds, pageable);
     }
@@ -71,7 +69,7 @@ public class CommunityService {
     @Transactional(readOnly = true)
     public CommunityPostResponse getPost(UUID postId, UUID userId) {
         CommunityPost post = communityPostRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("Gönderi bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
         boolean liked = postLikeRepository.existsByPostIdAndUserId(postId, userId);
         return CommunityPostResponse.from(post, liked);
     }
@@ -81,7 +79,7 @@ public class CommunityService {
     @Transactional
     public CommunityPostResponse createPost(UUID userId, CreatePostRequest request, MultipartFile imageFile) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         String imageUrl = null;
         String content = request.content();
@@ -131,9 +129,9 @@ public class CommunityService {
     @Transactional
     public void deletePost(UUID postId, UUID userId) {
         CommunityPost post = communityPostRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("Gönderi bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
         if (!post.getUser().getId().equals(userId))
-            throw new UnauthorizedException("Bu gönderiyi silme yetkiniz yok");
+            throw new UnauthorizedException("You do not have permission to delete this post");
         storageService.deleteImage(post.getImageUrl());
         communityPostRepository.delete(post);
     }
@@ -144,9 +142,9 @@ public class CommunityService {
     public void likePost(UUID postId, UUID userId) {
         if (postLikeRepository.existsByPostIdAndUserId(postId, userId)) return;
         CommunityPost post = communityPostRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("Gönderi bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         postLikeRepository.save(PostLike.builder().post(post).user(user).build());
         communityPostRepository.incrementLikesCount(postId);
         eventPublisher.publishEvent(new PostLikedEvent(userId, post.getUser().getId(), postId));
@@ -167,25 +165,40 @@ public class CommunityService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").ascending());
         var topLevel = postCommentRepository.findByPostIdAndParentIsNullOrderByCreatedAtAsc(postId, pageable);
 
+        List<UUID> topLevelIds = topLevel.getContent().stream()
+                .map(PostComment::getId).toList();
+        if (topLevelIds.isEmpty()) {
+            return PagedResponse.from(topLevel, c -> PostCommentResponse.from(c, false, Collections.emptyList()));
+        }
+
+        // batch-load all replies for this page's top-level comments (1 query)
+        Map<UUID, List<PostComment>> repliesByParent = postCommentRepository
+                .findByParentIdInOrderByCreatedAtAsc(topLevelIds).stream()
+                .collect(Collectors.groupingBy(r -> r.getParent().getId()));
+
+        // collect all comment IDs (top-level + replies) for batch like check
+        List<UUID> allCommentIds = new ArrayList<>(topLevelIds);
+        repliesByParent.values().forEach(replies ->
+                replies.forEach(r -> allCommentIds.add(r.getId())));
+
+        // batch-load liked status for all comments (1 query)
+        Set<UUID> likedIds = commentLikeRepository.findCommentIdsLikedByUser(userId, allCommentIds);
+
         return PagedResponse.from(topLevel, comment -> {
-            boolean likedByMe = commentLikeRepository.existsByCommentIdAndUserId(comment.getId(), userId);
-            List<PostCommentResponse> replies = postCommentRepository
-                    .findByParentIdOrderByCreatedAtAsc(comment.getId()).stream()
-                    .map(reply -> {
-                        boolean replyLiked = commentLikeRepository.existsByCommentIdAndUserId(reply.getId(), userId);
-                        return PostCommentResponse.from(reply, replyLiked, Collections.emptyList());
-                    })
+            List<PostCommentResponse> replies = repliesByParent
+                    .getOrDefault(comment.getId(), Collections.emptyList()).stream()
+                    .map(reply -> PostCommentResponse.from(reply, likedIds.contains(reply.getId()), Collections.emptyList()))
                     .collect(Collectors.toList());
-            return PostCommentResponse.from(comment, likedByMe, replies);
+            return PostCommentResponse.from(comment, likedIds.contains(comment.getId()), replies);
         });
     }
 
     @Transactional
     public PostCommentResponse createComment(UUID postId, UUID userId, CreateCommentRequest request) {
         CommunityPost post = communityPostRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("Gönderi bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         PostComment.PostCommentBuilder builder = PostComment.builder()
                 .post(post).user(user).content(request.content());
@@ -193,7 +206,7 @@ public class CommunityService {
 
         if (request.parentId() != null) {
             parentComment = postCommentRepository.findById(request.parentId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Parent yorum bulunamadı"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Parent comment not found"));
             if (!parentComment.getPost().getId().equals(postId))
                 throw new IllegalArgumentException("Parent comment does not belong to this post");
             if (parentComment.getParent() != null)
@@ -221,12 +234,12 @@ public class CommunityService {
         PostComment comment = postCommentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Yorum bulunamadı"));
         CommunityPost post = communityPostRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("Gönderi bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
         boolean isCommentOwner = comment.getUser().getId().equals(userId);
         boolean isPostOwner = post.getUser().getId().equals(userId);
         if (!isCommentOwner && !isPostOwner)
-            throw new UnauthorizedException("Bu yorumu silme yetkiniz yok");
+            throw new UnauthorizedException("You do not have permission to delete this comment");
 
         long replyCount = postCommentRepository.countByParentId(commentId);
         communityPostRepository.decrementCommentsCount(postId, (int) (1 + replyCount));
@@ -241,7 +254,7 @@ public class CommunityService {
         PostComment comment = postCommentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Yorum bulunamadı"));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         commentLikeRepository.save(CommentLike.builder().comment(comment).user(user).build());
         postCommentRepository.incrementLikesCount(commentId);
     }
@@ -262,7 +275,7 @@ public class CommunityService {
             throw new IllegalArgumentException("Cannot follow yourself");
         if (followRepository.existsByFollowerIdAndFollowingId(followerId, followingId)) return;
         User follower = userRepository.findById(followerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         User following = userRepository.findById(followingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Takip edilecek kullanıcı bulunamadı"));
         followRepository.save(Follow.builder().follower(follower).following(following).build());

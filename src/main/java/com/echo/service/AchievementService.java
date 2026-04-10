@@ -82,7 +82,7 @@ public class AchievementService {
                 eventPublisher.publishEvent(
                         new AchievementEarnedEvent(userId, badge.name(), badge.getTitle(), badge.getEmoji())
                 );
-                log.info("Badge kazanıldı: userId={}, badge={}", userId, badge.name());
+                log.info("Badge awarded: userId={}, badge={}", userId, badge.name());
             }
         }
 
@@ -178,12 +178,7 @@ public class AchievementService {
         LocalDate lastEntry = user.getLastEntryDate();
 
         if (lastEntry == null || lastEntry.isBefore(yesterday)) {
-            // reset streak (no entry yesterday)
-            if (lastEntry != null && !lastEntry.equals(yesterday)) {
-                user.setCurrentStreak(1);
-            } else {
-                user.setCurrentStreak(1);
-            }
+            user.setCurrentStreak(1);
         } else if (lastEntry.equals(yesterday)) {
             user.setCurrentStreak(user.getCurrentStreak() + 1);
         }
@@ -195,11 +190,7 @@ public class AchievementService {
     }
 
     private int estimateTotalWords(UUID userId) {
-        return journalEntryRepository.findTranscriptsByUserId(userId).stream()
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .mapToInt(transcript -> transcript.split("\\s+").length)
-                .sum();
+        return (int) journalEntryRepository.countTotalWordsByUserId(userId);
     }
 
     /**

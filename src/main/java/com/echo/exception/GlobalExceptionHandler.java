@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -83,6 +85,17 @@ public class GlobalExceptionHandler {
         // static resource not found (e.g. old S3 image URLs) — silently return 404
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of("NOT_FOUND", "Kaynak bulunamadı"));
+    }
+
+    @ExceptionHandler(QuotaExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleQuotaExceeded(QuotaExceededException ex) {
+        Map<String, Object> body = Map.of(
+                "code", "QUOTA_EXCEEDED",
+                "quotaCode", ex.getQuotaCode(),
+                "message", ex.getMessage(),
+                "timestamp", OffsetDateTime.now()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
     @ExceptionHandler(Exception.class)

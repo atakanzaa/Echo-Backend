@@ -6,19 +6,19 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 /**
- * iOS uygulaması Apple Speech ile cihaz üzerinde STT yaptıktan sonra
- * transkripti doğrudan gönderir. Audio sunucuya hiç gelmez.
- * UPLOADING ve TRANSCRIBING adımları atlanır, doğrudan ANALYZING'e geçilir.
+ * iOS sends the transcript directly after on-device STT via Apple Speech.
+ * Audio never reaches the server — UPLOADING and TRANSCRIBING steps are skipped,
+ * entry goes straight to ANALYZING.
  */
 public record CreateJournalFromTranscriptRequest(
-        @NotBlank(message = "Transkript boş olamaz")
-        @Size(max = 10000, message = "Transkript en fazla 10.000 karakter olabilir")
+        @NotBlank(message = "Transcript must not be blank")
+        @Size(max = 10000, message = "Transcript must be 10,000 characters or fewer")
         String transcript,
 
-        @NotNull(message = "Kayıt tarihi zorunludur")
+        @NotNull(message = "Recorded date is required")
         String recordedAt,          // ISO-8601 offset datetime
 
-        @Positive(message = "Süre pozitif olmalıdır")
+        @Positive(message = "Duration must be positive")
         int durationSeconds,
 
         String idempotencyKey       // UUID — duplicate submission guard (optional but recommended)

@@ -7,11 +7,13 @@ import com.echo.domain.coach.CoachSession;
 import com.echo.domain.coach.MessageRole;
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.journal.JournalEntry;
+import com.echo.domain.subscription.FeatureKey;
 import com.echo.domain.user.User;
 import com.echo.dto.request.SendCoachMessageRequest;
 import com.echo.dto.response.CoachMessageResponse;
 import com.echo.dto.response.CoachSessionResponse;
 import com.echo.dto.response.PagedResponse;
+import com.echo.exception.QuotaExceededException;
 import com.echo.exception.ResourceNotFoundException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.CoachMessageRepository;
@@ -23,7 +25,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -49,6 +53,9 @@ public class CoachService {
     private final AIProviderRouter router;
     private final UserMemoryService userMemoryService;
     private final AISynthesisService synthesisService;
+    private final EntitlementService entitlementService;
+    private final GoalIntegrationService goalIntegrationService;
+    private final PlatformTransactionManager transactionManager;
 
     private static final int MAX_HISTORY = 10;
     private static final int CONTEXT_DAYS = 7;
@@ -65,6 +72,13 @@ public class CoachService {
 
     @Transactional
     public CoachSessionResponse createSession(UUID userId, UUID journalEntryId) {
+        if (!entitlementService.consumeQuota(userId, FeatureKey.COACH_SESSIONS)) {
+            throw new QuotaExceededException(
+                    "COACH_SESSION_LIMIT",
+                    "Monthly coach session limit reached. Upgrade to Premium for unlimited sessions."
+            );
+        }
+
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -153,60 +167,97 @@ public class CoachService {
     }
 
     @Transactional(readOnly = true)
-    public List<CoachMessageResponse> getMessages(UUID sessionId, UUID userId) {
+    public PagedResponse<CoachMessageResponse> getMessages(UUID sessionId, UUID userId, Pageable pageable) {
         sessionRepo.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
-        return messageRepo.findBySessionIdOrderByCreatedAtAsc(sessionId)
-                .stream().map(CoachMessageResponse::from).toList();
+        return PagedResponse.from(
+                messageRepo.findBySessionIdOrderByCreatedAtAsc(sessionId, pageable),
+                CoachMessageResponse::from
+        );
     }
 
-    @Transactional
     public List<CoachMessageResponse> sendMessage(UUID sessionId, UUID userId, SendCoachMessageRequest request) {
-        CoachSession session = sessionRepo.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
-        User user = userRepo.findById(userId).orElseThrow();
+        TransactionTemplate readTx = new TransactionTemplate(transactionManager);
+        readTx.setReadOnly(true);
 
-        // load history BEFORE saving user message to prevent duplicate in AI context
-        List<CoachMessage> allMessages = messageRepo.findBySessionIdOrderByCreatedAtAsc(sessionId);
-        int size = allMessages.size();
+        // Phase 1: validate + load context in a short read-only transaction — DB connection released before AI call
+        SendMessageContext ctx = readTx.execute(status -> {
+            sessionRepo.findByIdAndUserId(sessionId, userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+            User user = userRepo.findById(userId).orElseThrow();
 
-        // take LAST N messages, not first N
-        List<CoachMessage> recentHistory = size > MAX_HISTORY
-                ? allMessages.subList(size - MAX_HISTORY, size)
-                : allMessages;
+            if (!entitlementService.consumeSessionQuota(userId, sessionId, FeatureKey.COACH_MESSAGES_PER_SESSION)) {
+                throw new QuotaExceededException(
+                        "COACH_SESSION_MESSAGE_LIMIT",
+                        "Message limit reached for this coach session. Upgrade to Premium for longer conversations."
+                );
+            }
+            if (!entitlementService.consumeQuota(userId, FeatureKey.COACH_MESSAGES_TOTAL)) {
+                throw new QuotaExceededException(
+                        "COACH_MONTHLY_LIMIT",
+                        "Monthly coach message limit reached. Upgrade to Premium for higher monthly limits."
+                );
+            }
 
-        List<AICoachRequest.ChatMessage> chatHistory = recentHistory.stream()
-                .map(m -> new AICoachRequest.ChatMessage(m.getRole().name().toLowerCase(), m.getContent()))
-                .toList();
+            List<CoachMessage> allMessages = messageRepo.findBySessionIdOrderByCreatedAtAsc(sessionId);
+            int size = allMessages.size();
+            List<CoachMessage> recent = size > MAX_HISTORY ? allMessages.subList(size - MAX_HISTORY, size) : allMessages;
 
-        // single DB call for all context (was 3 separate queries)
-        UserContext ctx = buildUserContext(userId);
+            List<AICoachRequest.ChatMessage> chatHistory = recent.stream()
+                    .map(m -> new AICoachRequest.ChatMessage(m.getRole().name().toLowerCase(), m.getContent()))
+                    .toList();
 
-        // AI call
+            return new SendMessageContext(chatHistory, buildUserContext(userId),
+                    user.getDisplayName(), user.getPreferredLanguage(), size);
+        });
+
+        // Phase 2: AI call — no DB connection held
         var aiResponse = router.coach().chat(new AICoachRequest(
-                request.content(), chatHistory,
+                request.content(), ctx.chatHistory(),
                 userMemoryService.getUserProfile(userId),
-                ctx.moodContext(), ctx.topics(), ctx.goals(),
-                user.getDisplayName(), user.getPreferredLanguage()
+                ctx.userContext().moodContext(), ctx.userContext().topics(), ctx.userContext().goals(),
+                ctx.displayName(), ctx.language()
         ));
 
-        // Save user + assistant messages atomically after AI succeeds.
-        CoachMessage userMsg = CoachMessage.builder()
-                .session(session).user(user).role(MessageRole.USER).content(request.content()).build();
-        messageRepo.saveAndFlush(userMsg);
+        // Phase 3: persist in a new write transaction
+        TransactionTemplate writeTx = new TransactionTemplate(transactionManager);
+        return writeTx.execute(status -> {
+            CoachSession session = sessionRepo.findByIdAndUserId(sessionId, userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+            User user = userRepo.findById(userId).orElseThrow();
 
-        CoachMessage assistantMsg = CoachMessage.builder()
-                .session(session).user(user).role(MessageRole.ASSISTANT).content(aiResponse.content()).build();
-        messageRepo.saveAndFlush(assistantMsg);
+            CoachMessage userMsg = CoachMessage.builder()
+                    .session(session).user(user).role(MessageRole.USER).content(request.content()).build();
+            messageRepo.saveAndFlush(userMsg);
 
-        // full synthesis every 5 exchanges (10 messages) for deep multi-source analysis
-        int newTotal = size + 2;
-        if (newTotal >= 10 && newTotal % 10 == 0) {
-            synthesisService.synthesizeAsync(userId);
-        }
+            CoachMessage assistantMsg = CoachMessage.builder()
+                    .session(session).user(user).role(MessageRole.ASSISTANT).content(aiResponse.content()).build();
+            messageRepo.saveAndFlush(assistantMsg);
 
-        return List.of(CoachMessageResponse.from(userMsg), CoachMessageResponse.from(assistantMsg));
+            try {
+                goalIntegrationService.processCoachUtterance(userId, sessionId, userMsg.getId(), request.content());
+            } catch (Exception e) {
+                log.warn("Goal completion detection skipped for coach message: sessionId={}, userId={}, error={}",
+                        sessionId, userId, e.getMessage());
+            }
+
+            int newTotal = ctx.totalMessageCount() + 2;
+            int interval = entitlementService.getLimit(userId, FeatureKey.SYNTHESIS_INTERVAL);
+            if (interval > 0 && newTotal >= interval && newTotal % interval == 0) {
+                synthesisService.synthesizeAsync(userId);
+            }
+
+            return List.of(CoachMessageResponse.from(userMsg), CoachMessageResponse.from(assistantMsg));
+        });
     }
+
+    private record SendMessageContext(
+            List<AICoachRequest.ChatMessage> chatHistory,
+            UserContext userContext,
+            String displayName,
+            String language,
+            int totalMessageCount
+    ) {}
 
     // soft-close session and trigger async profile update
     @Transactional
@@ -261,7 +312,10 @@ public class CoachService {
                     .toList();
         }
 
-        List<String> goals = goalRepo.findByUserIdAndStatusOrderByDetectedAtDesc(userId, "PENDING")
+        List<String> goals = goalRepo.findByUserIdAndStatusInOrderByDetectedAtDesc(
+                        userId,
+                        List.of(GoalIntegrationService.GOAL_STATUS_PENDING, GoalIntegrationService.GOAL_STATUS_ACTIVE)
+                )
                 .stream()
                 .limit(MAX_GOALS)
                 .map(g -> g.getTimeframe() != null && !g.getTimeframe().isBlank()

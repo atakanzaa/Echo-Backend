@@ -1,0 +1,13 @@
+package com.echo.domain.subscription;
+
+public enum FeatureKey {
+    JOURNAL_ENTRIES,
+    COACH_SESSIONS,
+    COACH_MESSAGES_PER_SESSION,
+    COACH_MESSAGES_TOTAL,
+    INSIGHTS_MAX_PERIOD,
+    SUMMARY_MAX_PERIOD,
+    ACTIVE_GOALS,
+    ACTIVE_TIME_CAPSULES,
+    SYNTHESIS_INTERVAL
+}

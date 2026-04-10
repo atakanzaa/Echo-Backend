@@ -3,8 +3,10 @@ package com.echo.controller;
 import com.echo.dto.request.CreateJournalFromTranscriptRequest;
 import com.echo.dto.response.JournalEntryResponse;
 import com.echo.dto.response.JournalStatusResponse;
+import com.echo.dto.response.OnThisDayResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.JournalService;
+import com.echo.service.UserStatsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -29,6 +31,7 @@ public class JournalController {
 
     private static final Logger log = LoggerFactory.getLogger(JournalController.class);
     private final JournalService journalService;
+    private final UserStatsService userStatsService;
 
     /**
      * Upload audio and start async pipeline.
@@ -112,5 +115,13 @@ public class JournalController {
             @AuthenticationPrincipal UserPrincipal principal) {
 
         return ResponseEntity.ok(journalService.getRecent(principal.getId(), Math.min(limit, 50)));
+    }
+
+    @GetMapping("/on-this-day")
+    public ResponseEntity<OnThisDayResponse> getOnThisDay(
+            @AuthenticationPrincipal UserPrincipal principal) {
+
+        OnThisDayResponse response = userStatsService.getOnThisDay(principal.getId());
+        return ResponseEntity.ok(response);
     }
 }

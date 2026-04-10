@@ -45,6 +45,14 @@ public class User {
     @Builder.Default
     private String role = "USER";
 
+    @Column(name = "subscription_tier", nullable = false, length = 20)
+    @Builder.Default
+    private String subscriptionTier = "FREE";
+
+    @Column(name = "ads_enabled", nullable = false)
+    @Builder.Default
+    private boolean adsEnabled = true;
+
     // streak & stats — updated by AchievementService
     @Column(name = "current_streak", nullable = false)
     @Builder.Default

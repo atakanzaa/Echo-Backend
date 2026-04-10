@@ -6,28 +6,27 @@ import com.echo.ai.AIProviderRouter;
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.journal.EntryStatus;
 import com.echo.domain.journal.JournalEntry;
+import com.echo.domain.subscription.FeatureKey;
 import com.echo.domain.user.User;
 import com.echo.dto.response.JournalEntryResponse;
 import com.echo.dto.response.JournalStatusResponse;
-import com.echo.event.JournalAnalysisCompletedEvent;
+import com.echo.exception.QuotaExceededException;
 import com.echo.exception.ResourceNotFoundException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Optional;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -42,10 +41,10 @@ public class JournalService {
     private final UserRepository userRepository;
     private final AIProviderRouter router;
     private final AchievementService achievementService;
-    private final ApplicationEventPublisher eventPublisher;
     private final AiJobDlqService aiJobDlqService;
     // separate bean fixes @Transactional self-invocation in @Async methods
     private final JournalEntryUpdater entryUpdater;
+    private final EntitlementService entitlementService;
 
     @Transactional
     public JournalEntryResponse createEntry(UUID userId,
@@ -63,6 +62,13 @@ public class JournalService {
                 log.info("Idempotent request — returning existing entry: entryId={} key={}", e.getId(), idempotencyKey);
                 return JournalEntryResponse.from(e, analysis);
             }
+        }
+
+        if (!entitlementService.consumeQuota(userId, FeatureKey.JOURNAL_ENTRIES)) {
+            throw new QuotaExceededException(
+                    "JOURNAL_LIMIT",
+                    "Monthly journal entry limit reached. Upgrade to Premium for unlimited journaling."
+            );
         }
 
         User user = userRepository.findById(userId)
@@ -104,6 +110,13 @@ public class JournalService {
             }
         }
 
+        if (!entitlementService.consumeQuota(userId, FeatureKey.JOURNAL_ENTRIES)) {
+            throw new QuotaExceededException(
+                    "JOURNAL_LIMIT",
+                    "Monthly journal entry limit reached. Upgrade to Premium for unlimited journaling."
+            );
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -130,7 +143,7 @@ public class JournalService {
             UserDetails details = getUserDetails(userId);
             AIAnalysisResponse analysis = router.analysis()
                     .analyze(new AIAnalysisRequest(transcript, details.timezone(), details.language()));
-            saveAnalysisResult(entryId, userId, analysis);
+            entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
             log.info("Transcript analysis completed: entryId={}", entryId);
@@ -170,7 +183,7 @@ public class JournalService {
                     .analyze(new AIAnalysisRequest(transcript, details.timezone(), details.language()));
 
             // 5. save analysis result
-            saveAnalysisResult(entryId, userId, analysis);
+            entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
 
             // 6. check achievements
@@ -236,54 +249,6 @@ public class JournalService {
                 .toList();
     }
 
-    // runs inside @Async thread but saveAnalysisResult is called directly here
-    // which is fine since this method is called from the async context
-    @Transactional
-    protected void saveAnalysisResult(UUID entryId, UUID userId, AIAnalysisResponse analysis) {
-        JournalEntry entry = journalEntryRepository.findById(entryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Entry not found"));
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        double clampedScore = Math.max(0.0, Math.min(1.0, analysis.moodScore()));
-        AnalysisResult result = AnalysisResult.builder()
-                .journalEntry(entry)
-                .user(user)
-                .entryDate(entry.getEntryDate())
-                .summary(analysis.summary())
-                .moodScore(BigDecimal.valueOf(clampedScore))
-                .moodLabel(analysis.moodLabel())
-                .topics(analysis.topics())
-                .reflectiveQuestion(analysis.reflectiveQuestion())
-                .keyEmotions(analysis.keyEmotions())
-                .energyLevel(analysis.energyLevel())
-                .rawAiResponse(analysis.rawJson())
-                .aiProvider(router.activeProvider())
-                .build();
-
-        analysisResultRepository.save(result);
-
-        // publish domain event for GoalEventListener + TimeCapsuleEventListener
-        eventPublisher.publishEvent(new JournalAnalysisCompletedEvent(userId, entryId, analysis));
-
-        updateUserMoodAverage(userId);
-    }
-
-    @Transactional
-    protected void updateUserMoodAverage(UUID userId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            var results = analysisResultRepository
-                    .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
-                            userId, LocalDate.now().minusDays(30), LocalDate.now());
-            if (!results.isEmpty()) {
-                double avg = results.stream()
-                        .mapToDouble(r -> r.getMoodScore().doubleValue())
-                        .average().orElse(0.0);
-                user.setMoodScoreAvg(BigDecimal.valueOf(avg));
-                userRepository.save(user);
-            }
-        });
-    }
 
     private UserDetails getUserDetails(UUID userId) {
         return userRepository.findById(userId)

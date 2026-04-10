@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
@@ -24,6 +25,9 @@ public class AppProperties {
     @Valid private AI ai = new AI();
     @Valid private Storage storage = new Storage();
     @Valid private Cors cors = new Cors();
+    @Valid private Google google = new Google();
+    @NestedConfigurationProperty
+    @Valid private Apple apple = new Apple();
     private Prompts prompts = new Prompts();
 
     @PostConstruct
@@ -125,6 +129,20 @@ public class AppProperties {
         private String coachVersion         = "coach-v5";
         private String synthesisVersion     = "synthesis-v2";
         private String transcriptionVersion = "transcription-v1";
+    }
+
+    @Getter @Setter
+    public static class Apple {
+        private String bundleId;
+        private String issuerId;
+        private String keyId;
+        private String keyPath;
+    }
+
+    @Getter @Setter
+    public static class Google {
+        private String clientId;
+        private String tokenInfoUrl = "https://oauth2.googleapis.com/tokeninfo";
     }
 
     private String normalizeProvider(String provider) {

@@ -67,16 +67,11 @@ public class AISynthesisService {
         memoryService.updateFromSynthesis(userId, response);
 
         synthesisCache.put(cacheKey, response);
-        log.info("Synthesis tamamlandı: userId={}, period={}, growthScore={}",
+        log.info("Synthesis completed: userId={}, period={}, growthScore={}",
                 userId, periodDays, response.growthScore());
         return response;
     }
 
-    /**
-     * Konuşma bazlı async synthesis tetikleyici.
-     * CoachService tarafından her 5. mesaj alışverişi veya oturum bitiminde çağrılır.
-     * Virtual thread üzerinde çalışır — coach yanıtını asla engellemez.
-     */
     /**
      * Session-end trigger: synthesizes only today's data (period=1).
      * Fast and focused — captures what happened today without re-processing old history.
@@ -86,9 +81,9 @@ public class AISynthesisService {
     public void synthesizeAsync(UUID userId) {
         try {
             synthesize(userId, 1);
-            log.debug("Async synthesis tamamlandı: userId={}", userId);
+            log.debug("Async synthesis completed: userId={}", userId);
         } catch (Exception e) {
-            log.warn("Async synthesis başarısız: userId={}, hata={}", userId, e.getMessage());
+            log.warn("Async synthesis failed: userId={}, error={}", userId, e.getMessage());
         }
     }
 
@@ -140,7 +135,10 @@ public class AISynthesisService {
 
         // Active goals: max 5
         List<String> activeGoals = goalRepo
-                .findByUserIdAndStatusOrderByDetectedAtDesc(userId, "PENDING")
+                .findByUserIdAndStatusInOrderByDetectedAtDesc(
+                        userId,
+                        List.of(GoalIntegrationService.GOAL_STATUS_PENDING, GoalIntegrationService.GOAL_STATUS_ACTIVE)
+                )
                 .stream()
                 .limit(MAX_GOALS)
                 .map(g -> g.getTimeframe() != null && !g.getTimeframe().isBlank()

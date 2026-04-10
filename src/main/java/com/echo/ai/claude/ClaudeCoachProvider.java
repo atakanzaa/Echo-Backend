@@ -91,7 +91,7 @@ public class ClaudeCoachProvider implements AICoachProvider {
         for (var msg : request.history()) {
             messages.add(Map.of("role", msg.role(), "content", msg.content()));
         }
-        messages.add(Map.of("role", "user", "content", request.userMessage()));
+        messages.add(Map.of("role", "user", "content", sanitizeUserInput(request.userMessage())));
 
         Map<String, Object> requestBody = Map.of(
                 "model", props.getAi().getClaude().getCoachModel(),
@@ -113,15 +113,25 @@ public class ClaudeCoachProvider implements AICoachProvider {
         Map<?, ?> body = response.getBody();
         List<?> content = (List<?>) body.get("content");
         if (content == null || content.isEmpty()) {
-            throw new RuntimeException("Claude boş content döndürdü: " + body);
+            throw new RuntimeException("Claude returned empty content: " + body);
         }
         Map<?, ?> block = (Map<?, ?>) content.get(0);
         return new AICoachResponse((String) block.get("text"));
     }
 
     private AICoachResponse chatFallback(AICoachRequest request, Throwable ex) {
-        log.error("Claude coach devre dışı (circuit open): {}", ex.getMessage());
-        throw new ServiceUnavailableException(
-                "AI koç servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
+        log.error("Claude coach circuit open: {}", ex.getMessage());
+        throw new ServiceUnavailableException("AI coach service is temporarily unavailable.", ex);
+    }
+
+    /** Strips known prompt injection vectors from user coach messages. */
+    private String sanitizeUserInput(String input) {
+        if (input == null) return "";
+        return input
+                .replaceAll("(?i)</?SYSTEM>", "")
+                .replaceAll("(?i)ignore (all )?previous instructions?", "[filtered]")
+                .replaceAll("(?i)you are now", "[filtered]")
+                .replaceAll("(?i)\\bact as\\b(?! (a user|the user))", "[filtered]")
+                .replaceAll("(?i)\\bnew instructions?\\b", "[filtered]");
     }
 }

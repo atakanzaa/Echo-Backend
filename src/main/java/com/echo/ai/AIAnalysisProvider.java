@@ -9,4 +9,6 @@ public interface AIAnalysisProvider {
      * @return Analiz sonucu
      */
     AIAnalysisResponse analyze(AIAnalysisRequest request);
+
+    GoalMatchDecision verifyGoalMatch(GoalMatchVerificationRequest request);
 }

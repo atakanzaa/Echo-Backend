@@ -75,6 +75,16 @@ app:
     images-bucket:          ${R2_IMAGES_BUCKET:echo-community-images}
     images-public-base-url: ${R2_IMAGES_PUBLIC_URL:}
 
+  apple:
+    bundle-id: ${APPLE_BUNDLE_ID:}
+    issuer-id: ${APPLE_ISSUER_ID:}
+    key-id: ${APPLE_KEY_ID:}
+    key-path: ${APPLE_KEY_PATH:}
+
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+    token-info-url: ${GOOGLE_TOKEN_INFO_URL:https://oauth2.googleapis.com/tokeninfo}
+
   prompts:
     analysis-version:      ${PROMPT_ANALYSIS_VERSION:analysis-v4}
     coach-version:         ${PROMPT_COACH_VERSION:coach-v5}

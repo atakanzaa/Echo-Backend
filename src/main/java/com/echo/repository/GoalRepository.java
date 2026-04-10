@@ -1,6 +1,8 @@
 package com.echo.repository;
 
 import com.echo.domain.goal.Goal;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -9,17 +11,25 @@ import java.util.UUID;
 
 public interface GoalRepository extends JpaRepository<Goal, UUID> {
 
-    /** Belirli statüdeki hedefleri getir (PENDING, COMPLETED, vb.) */
     List<Goal> findByUserIdAndStatusOrderByDetectedAtDesc(UUID userId, String status);
 
-    /** Tüm hedefleri getir — geçmiş dahil */
+    List<Goal> findByUserIdAndStatusInOrderByDetectedAtDesc(UUID userId, List<String> statuses);
+
+    Page<Goal> findByUserIdAndStatusInOrderByDetectedAtDesc(UUID userId, List<String> statuses, Pageable pageable);
+
+    List<Goal> findByUserIdAndStatusNotOrderByDetectedAtDesc(UUID userId, String status);
+
+    Page<Goal> findByUserIdAndStatusNotOrderByDetectedAtDesc(UUID userId, String status, Pageable pageable);
+
     List<Goal> findByUserIdOrderByDetectedAtDesc(UUID userId);
 
-    /** Kullanıcıya ait tekil hedef — yetki kontrolü için */
     Optional<Goal> findByIdAndUserId(UUID id, UUID userId);
 
-    /** Belirli statüdeki hedef sayısı — synthesis için tamamlanan hedef sayısında kullanılır */
+    Optional<Goal> findByIdAndUserIdAndStatusNot(UUID id, UUID userId, String status);
+
     int countByUserIdAndStatus(UUID userId, String status);
+
+    int countByUserIdAndStatusIn(UUID userId, List<String> statuses);
 
     boolean existsByUserIdAndSourceJournalEntryIdAndTitle(UUID userId,
                                                            UUID sourceJournalEntryId,

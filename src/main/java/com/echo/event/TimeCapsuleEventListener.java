@@ -1,9 +1,11 @@
 package com.echo.event;
 
 import com.echo.domain.capsule.TimeCapsule;
+import com.echo.domain.subscription.FeatureKey;
 import com.echo.domain.user.User;
 import com.echo.repository.TimeCapsuleRepository;
 import com.echo.repository.UserRepository;
+import com.echo.service.EntitlementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -27,6 +29,7 @@ public class TimeCapsuleEventListener {
 
     private final TimeCapsuleRepository timeCapsuleRepository;
     private final UserRepository        userRepository;
+    private final EntitlementService entitlementService;
 
     @Async("journalProcessingExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -44,6 +47,14 @@ public class TimeCapsuleEventListener {
 
         if (timeCapsuleRepository.existsByUserIdAndSourceJournalEntryId(user.getId(), event.journalEntryId())) {
             log.debug("Time capsule already exists for this entry, skipping");
+            return;
+        }
+
+        int limit = entitlementService.getLimit(user.getId(), FeatureKey.ACTIVE_TIME_CAPSULES);
+        int activeCapsules = timeCapsuleRepository.countByUserIdAndStatus(user.getId(), "sealed");
+        if (limit != -1 && activeCapsules >= limit) {
+            log.info("Time capsule limit reached, skipping auto capsule creation: userId={}, limit={}",
+                    user.getId(), limit);
             return;
         }
 

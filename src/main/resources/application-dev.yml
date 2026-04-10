@@ -20,4 +20,9 @@ app:
 
 logging:
   level:
-    com.echo: DEBUG
+    root: INFO
+    com.echo: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+    com.zaxxer.hikari: WARN
+    org.flywaydb: WARN

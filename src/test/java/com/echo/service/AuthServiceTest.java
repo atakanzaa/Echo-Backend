@@ -1,11 +1,11 @@
 package com.echo.service;
 
+import com.echo.config.AppProperties;
 import com.echo.domain.token.RefreshToken;
 import com.echo.domain.user.User;
 import com.echo.dto.request.LoginRequest;
 import com.echo.dto.request.RegisterRequest;
 import com.echo.dto.response.AuthResponse;
-import com.echo.exception.EchoException;
 import com.echo.repository.RefreshTokenRepository;
 import com.echo.repository.UserRepository;
 import com.echo.security.JwtTokenProvider;
@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
@@ -30,13 +31,16 @@ class AuthServiceTest {
     @Mock RefreshTokenRepository refreshTokenRepository;
     @Mock PasswordEncoder        passwordEncoder;
     @Mock JwtTokenProvider       jwtTokenProvider;
+    @Mock AppProperties          props;
 
     @InjectMocks AuthService authService;
 
     @Test
     void register_withNewEmail_returnsAuthResponse() {
         // given
-        RegisterRequest request = new RegisterRequest("test@echo.com", "Test1234!", "Test User", "UTC");
+        stubJwtProps();
+
+        RegisterRequest request = new RegisterRequest("test@echo.com", "Test1234!", "Test User", "UTC", "tr");
         given(userRepository.existsByEmail(request.email())).willReturn(false);
         given(passwordEncoder.encode(anyString())).willReturn("hashed");
         User saved = User.builder()
@@ -61,17 +65,19 @@ class AuthServiceTest {
     @Test
     void register_withExistingEmail_throwsEchoException() {
         // given
-        RegisterRequest request = new RegisterRequest("existing@echo.com", "Test1234!", "User", "UTC");
+        RegisterRequest request = new RegisterRequest("existing@echo.com", "Test1234!", "User", "UTC", "tr");
         given(userRepository.existsByEmail(request.email())).willReturn(true);
 
         // when / then
         assertThatThrownBy(() -> authService.register(request))
-                .isInstanceOf(EchoException.class);
+                .isInstanceOf(BadCredentialsException.class);
     }
 
     @Test
     void login_withValidCredentials_returnsAuthResponse() {
         // given
+        stubJwtProps();
+
         LoginRequest request = new LoginRequest("test@echo.com", "Test1234!");
         User user = User.builder()
                 .id(UUID.randomUUID())
@@ -108,6 +114,13 @@ class AuthServiceTest {
 
         // when / then
         assertThatThrownBy(() -> authService.login(request))
-                .isInstanceOf(EchoException.class);
+                .isInstanceOf(BadCredentialsException.class);
+    }
+
+    private void stubJwtProps() {
+        AppProperties.Jwt jwt = new AppProperties.Jwt();
+        jwt.setAccessTokenExpirySeconds(900);
+        jwt.setRefreshTokenExpirySeconds(2_592_000);
+        given(props.getJwt()).willReturn(jwt);
     }
 }

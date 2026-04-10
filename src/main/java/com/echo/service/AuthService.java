@@ -3,6 +3,7 @@ package com.echo.service;
 import com.echo.config.AppProperties;
 import com.echo.domain.token.RefreshToken;
 import com.echo.domain.user.User;
+import com.echo.dto.request.GoogleLoginRequest;
 import com.echo.dto.request.LoginRequest;
 import com.echo.dto.request.RegisterRequest;
 import com.echo.dto.response.AuthResponse;
@@ -23,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -34,19 +36,21 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final AppProperties props;
+    private final GoogleIdentityService googleIdentityService;
 
     // generic error message prevents user enumeration attacks
     private static final String INVALID_CREDENTIALS = "Invalid email or password";
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
+        String email = normalizeEmail(request.email());
+        if (userRepository.existsByEmail(email)) {
             // same generic message to prevent email enumeration
             throw new BadCredentialsException(INVALID_CREDENTIALS);
         }
 
         var user = User.builder()
-                .email(request.email())
+                .email(email)
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .displayName(request.displayName())
                 .timezone(request.timezone() != null ? request.timezone() : "UTC")
@@ -59,7 +63,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        var user = userRepository.findByEmail(request.email())
+        var user = userRepository.findByEmail(normalizeEmail(request.email()))
                 .orElseThrow(() -> new BadCredentialsException(INVALID_CREDENTIALS));
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -69,6 +73,32 @@ public class AuthService {
             throw new UnauthorizedException("Account is disabled");
         }
 
+        return buildAuthResponse(user);
+    }
+
+    @Transactional
+    public AuthResponse loginWithGoogle(GoogleLoginRequest request) {
+        GoogleIdentityService.GoogleIdentity identity = googleIdentityService.verifyIdToken(request.idToken());
+        String email = normalizeEmail(identity.email());
+
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> createUserFromGoogle(identity, request));
+
+        if (!user.isActive()) {
+            throw new UnauthorizedException("Account is disabled");
+        }
+
+        if (!hasText(user.getDisplayName())) {
+            user.setDisplayName(resolveDisplayName(identity.name(), email));
+        }
+        if (hasText(request.timezone())) {
+            user.setTimezone(request.timezone());
+        }
+        if (hasText(request.language())) {
+            user.setPreferredLanguage(request.language());
+        }
+
+        user = userRepository.save(user);
         return buildAuthResponse(user);
     }
 
@@ -131,5 +161,34 @@ public class AuthService {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
         }
+    }
+
+    private User createUserFromGoogle(GoogleIdentityService.GoogleIdentity identity, GoogleLoginRequest request) {
+        return userRepository.save(User.builder()
+                .email(normalizeEmail(identity.email()))
+                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .displayName(resolveDisplayName(identity.name(), identity.email()))
+                .timezone(hasText(request.timezone()) ? request.timezone() : "UTC")
+                .preferredLanguage(hasText(request.language()) ? request.language() : "tr")
+                .build());
+    }
+
+    private String resolveDisplayName(String candidate, String email) {
+        if (hasText(candidate)) {
+            return candidate.trim();
+        }
+        String local = email.split("@")[0];
+        if (!hasText(local)) {
+            return "Echo User";
+        }
+        return local.substring(0, 1).toUpperCase(Locale.ROOT) + local.substring(1);
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }
