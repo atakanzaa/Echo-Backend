@@ -38,8 +38,11 @@ public class CalendarService {
         // Coach session dates in this month
         OffsetDateTime monthStart = startDate.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
         OffsetDateTime monthEnd = endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
-        Set<LocalDate> coachDates = new HashSet<>(
-                coachSessionRepository.findSessionDatesByUserAndRange(userId, monthStart, monthEnd));
+        Set<LocalDate> coachDates = coachSessionRepository
+                .findSessionDatesByUserAndRange(userId, monthStart, monthEnd)
+                .stream()
+                .map(java.sql.Date::toLocalDate)
+                .collect(Collectors.toSet());
 
         List<CalendarMonthResponse.CalendarDay> days = new ArrayList<>();
         int streakDays = 0;

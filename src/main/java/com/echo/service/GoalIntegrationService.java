@@ -7,6 +7,8 @@ import com.echo.ai.GoalMatchCandidate;
 import com.echo.ai.GoalMatchDecision;
 import com.echo.ai.GoalMatchVerificationRequest;
 import com.echo.domain.goal.Goal;
+import com.echo.domain.goal.GoalCreationType;
+import com.echo.domain.goal.GoalStatus;
 import com.echo.domain.goal.GoalSuggestion;
 import com.echo.domain.journal.JournalEntry;
 import com.echo.domain.subscription.FeatureKey;
@@ -46,12 +48,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GoalIntegrationService {
 
-    public static final String GOAL_STATUS_PENDING = "PENDING";
-    public static final String GOAL_STATUS_ACTIVE = "ACTIVE";
-    public static final String GOAL_STATUS_COMPLETED = "COMPLETED";
-    public static final String GOAL_STATUS_DISMISSED = "DISMISSED";
-    public static final String GOAL_STATUS_DELETED = "DELETED";
-
     public static final String SUGGESTION_TYPE_CREATE_GOAL = "CREATE_GOAL";
     public static final String SUGGESTION_TYPE_COMPLETE_GOAL_CONFIRM = "COMPLETE_GOAL_CONFIRM";
 
@@ -63,7 +59,7 @@ public class GoalIntegrationService {
     public static final String SOURCE_TYPE_JOURNAL = "JOURNAL";
     public static final String SOURCE_TYPE_COACH = "COACH";
 
-    private static final List<String> OPEN_GOAL_STATUSES = List.of(GOAL_STATUS_PENDING, GOAL_STATUS_ACTIVE);
+    private static final List<GoalStatus> OPEN_GOAL_STATUSES = GoalStatus.openStatuses();
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\b\\d+(?:[.,]\\d+)?\\b");
     private static final Set<String> STOP_WORDS = Set.of(
@@ -234,7 +230,8 @@ public class GoalIntegrationService {
                 .title(suggestion.getTitle())
                 .timeframe(suggestion.getTimeframe())
                 .goalType(StringUtils.hasText(suggestion.getGoalType()) ? suggestion.getGoalType() : "general")
-                .status(GOAL_STATUS_PENDING)
+                .creationType(GoalCreationType.AI)
+                .status(GoalStatus.PENDING)
                 .sourceJournalEntryId(suggestion.getSourceJournalEntryId())
                 .detectedAt(OffsetDateTime.now())
                 .build();
@@ -452,7 +449,7 @@ public class GoalIntegrationService {
         if (goalId == null) {
             throw new IllegalStateException("Goal completion suggestion is missing a goal reference");
         }
-        return goalRepository.findByIdAndUserIdAndStatusNot(goalId, userId, GOAL_STATUS_DELETED)
+        return goalRepository.findByIdAndUserIdAndStatusNot(goalId, userId, GoalStatus.DELETED)
                 .orElseThrow(() -> new ResourceNotFoundException("Goal not found"));
     }
 

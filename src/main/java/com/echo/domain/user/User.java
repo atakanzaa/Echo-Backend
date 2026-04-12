@@ -83,6 +83,24 @@ public class User {
     @Builder.Default
     private String preferredLanguage = "tr";
 
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private boolean emailVerified = false;
+
+    @Column(name = "password_login_enabled", nullable = false)
+    @Builder.Default
+    private boolean passwordLoginEnabled = true;
+
+    @Column(name = "email_suppressed", nullable = false)
+    @Builder.Default
+    private boolean emailSuppressed = false;
+
+    @Column(name = "email_suppressed_reason", length = 50)
+    private String emailSuppressedReason;
+
+    @Column(name = "email_suppressed_at")
+    private OffsetDateTime emailSuppressedAt;
+
     // KVKK / privacy consent fields
     @Column(name = "ai_training_consent", nullable = false)
     @Builder.Default

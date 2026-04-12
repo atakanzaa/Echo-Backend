@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created
 
 -- community_posts: global feed (public posts by recency)
 CREATE INDEX IF NOT EXISTS idx_community_posts_public_created
-    ON community_posts (created_at DESC) WHERE public_post = true;
+    ON community_posts (created_at DESC) WHERE is_public = true;
 
 -- post_comments: comment listing per post (top-level + replies)
 CREATE INDEX IF NOT EXISTS idx_post_comments_post_parent_created

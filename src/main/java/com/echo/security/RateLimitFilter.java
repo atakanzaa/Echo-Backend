@@ -38,7 +38,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
             "/api/v1/auth/login",
             "/api/v1/auth/google",
             "/api/v1/auth/refresh",
-            "/api/v1/auth/logout"
+            "/api/v1/auth/logout",
+            "/api/v1/auth/forgot-password",
+            "/api/v1/auth/reset-password"
     );
 
     private static final int AUTH_LIMIT_PER_MINUTE = 5;
@@ -87,6 +89,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private RateLimitRule resolveRule(HttpServletRequest request) {
         String path = request.getRequestURI();
         if (!path.startsWith(API_PREFIX)) {
+            return null;
+        }
+        if ("POST".equals(request.getMethod())
+                && ("/api/v1/subscription/apple/notify".equals(path) || "/api/v1/webhooks/resend".equals(path))) {
             return null;
         }
         if ("GET".equals(request.getMethod()) && "/api/v1/health".equals(path)) {

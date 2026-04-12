@@ -9,11 +9,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-/**
- * AI'nın günlük girişlerinden tespit ettiği kullanıcı hedefleri.
- * Kullanıcı durumu manuel olarak güncelleyebilir: PENDING → COMPLETED | DISMISSED
- * sourceJournalEntryId: hangi günlük girişinden tespit edildiğini gösterir (nullable).
- */
 @Entity
 @Table(name = "goals")
 @Getter
@@ -41,19 +36,16 @@ public class Goal {
     @Builder.Default
     private String goalType = "general";
 
-    /**
-     * Hedef durumu: PENDING | ACTIVE | COMPLETED | DISMISSED
-     * Yeni tespitler PENDING olarak başlar.
-     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "creation_type", nullable = false, length = 20)
+    @Builder.Default
+    private GoalCreationType creationType = GoalCreationType.AI;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private String status = "PENDING";
+    private GoalStatus status = GoalStatus.PENDING;
 
-    /**
-     * Hedefin tespit edildiği günlük girişi ID'si.
-     * Plain UUID — circular dependency önlemek için @ManyToOne kullanılmadı.
-     * DB seviyesinde FK constraint V12 migration'da tanımlı.
-     */
     @Column(name = "source_journal_entry_id")
     private UUID sourceJournalEntryId;
 
@@ -62,6 +54,10 @@ public class Goal {
 
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "completion_type", length = 20)
+    private GoalCompletionType completionType;
 
     @Column(name = "completed_source_type", length = 20)
     private String completedSourceType;

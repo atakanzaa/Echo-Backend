@@ -9,6 +9,7 @@ import com.echo.security.JwtAuthenticationFilter;
 import com.echo.security.RateLimitFilter;
 import com.echo.security.UserDetailsServiceImpl;
 import com.echo.service.AuthService;
+import com.echo.service.PasswordResetService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ class AuthControllerTest {
     @Autowired ObjectMapper objectMapper;
 
     @MockBean AuthService authService;
+    @MockBean PasswordResetService passwordResetService;
     @MockBean JwtAuthenticationFilter jwtAuthenticationFilter;
     @MockBean RateLimitFilter rateLimitFilter;
     @MockBean UserDetailsServiceImpl userDetailsService;
@@ -45,7 +47,7 @@ class AuthControllerTest {
     private AuthResponse stubAuthResponse() {
         UserResponse user = new UserResponse(
                 UUID.randomUUID(), "test@echo.com", "Test User", "UTC",
-                0, 0, 0, BigDecimal.ZERO, "tr"
+                0, 0, 0, BigDecimal.ZERO, "tr", true, true
         );
         return new AuthResponse("access-token-123", "refresh-token-456", 900, user);
     }
@@ -88,4 +90,5 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNoContent());
     }
+
 }

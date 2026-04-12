@@ -3,6 +3,7 @@ package com.echo.service;
 import com.echo.config.AppProperties;
 import com.echo.domain.token.RefreshToken;
 import com.echo.domain.user.User;
+import com.echo.dto.request.ChangePasswordRequest;
 import com.echo.dto.request.GoogleLoginRequest;
 import com.echo.dto.request.LoginRequest;
 import com.echo.dto.request.RegisterRequest;
@@ -69,9 +70,35 @@ public class AuthService {
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException(INVALID_CREDENTIALS);
         }
+        if (!user.isPasswordLoginEnabled()) {
+            throw new BadCredentialsException(INVALID_CREDENTIALS);
+        }
         if (!user.isActive()) {
             throw new UnauthorizedException("Account is disabled");
         }
+
+        return buildAuthResponse(user);
+    }
+
+    @Transactional
+    public AuthResponse changePassword(UUID userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!user.isPasswordLoginEnabled()) {
+            throw new BadCredentialsException("Password change is not available for this account");
+        }
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new BadCredentialsException("Current password is incorrect");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new BadCredentialsException("New password must be different from current password");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setEmailVerified(true);
+        userRepository.save(user);
+        refreshTokenRepository.deleteByUserId(user.getId());
 
         return buildAuthResponse(user);
     }
@@ -97,6 +124,7 @@ public class AuthService {
         if (hasText(request.language())) {
             user.setPreferredLanguage(request.language());
         }
+        user.setEmailVerified(true);
 
         user = userRepository.save(user);
         return buildAuthResponse(user);
@@ -170,6 +198,8 @@ public class AuthService {
                 .displayName(resolveDisplayName(identity.name(), identity.email()))
                 .timezone(hasText(request.timezone()) ? request.timezone() : "UTC")
                 .preferredLanguage(hasText(request.language()) ? request.language() : "tr")
+                .emailVerified(true)
+                .passwordLoginEnabled(false)
                 .build());
     }
 

@@ -85,6 +85,15 @@ app:
     client-id: ${GOOGLE_CLIENT_ID:}
     token-info-url: ${GOOGLE_TOKEN_INFO_URL:https://oauth2.googleapis.com/tokeninfo}
 
+  resend:
+    api-key: ${RESEND_API_KEY:}
+    webhook-secret: ${RESEND_WEBHOOK_SECRET:}
+    from-address: ${RESEND_FROM_ADDRESS:no-reply@echojournal.net}
+    from-name: ${RESEND_FROM_NAME:Echo Journal}
+    reply-to-address: ${RESEND_REPLY_TO_ADDRESS:}
+    support-address: ${RESEND_SUPPORT_ADDRESS:support@echojournal.net}
+    enabled: ${RESEND_ENABLED:false}
+
   prompts:
     analysis-version:      ${PROMPT_ANALYSIS_VERSION:analysis-v4}
     coach-version:         ${PROMPT_COACH_VERSION:coach-v5}
@@ -191,4 +200,22 @@ resilience4j:
         slow-call-duration-threshold: 25s
         wait-duration-in-open-state: 45s
         permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+
+      apple-storekit:
+        sliding-window-size: 5
+        failure-rate-threshold: 60
+        slow-call-rate-threshold: 80
+        slow-call-duration-threshold: 8s
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 1
+        register-health-indicator: true
+
+      resend-email:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 80
+        slow-call-duration-threshold: 10s
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
         register-health-indicator: true

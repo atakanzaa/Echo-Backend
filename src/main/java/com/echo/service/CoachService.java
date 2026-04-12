@@ -5,6 +5,7 @@ import com.echo.ai.AIProviderRouter;
 import com.echo.domain.coach.CoachMessage;
 import com.echo.domain.coach.CoachSession;
 import com.echo.domain.coach.MessageRole;
+import com.echo.domain.goal.GoalStatus;
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.journal.JournalEntry;
 import com.echo.domain.subscription.FeatureKey;
@@ -178,9 +179,8 @@ public class CoachService {
 
     public List<CoachMessageResponse> sendMessage(UUID sessionId, UUID userId, SendCoachMessageRequest request) {
         TransactionTemplate readTx = new TransactionTemplate(transactionManager);
-        readTx.setReadOnly(true);
 
-        // Phase 1: validate + load context in a short read-only transaction — DB connection released before AI call
+        // Phase 1: validate + load context in a short transaction — DB connection released before AI call
         SendMessageContext ctx = readTx.execute(status -> {
             sessionRepo.findByIdAndUserId(sessionId, userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
@@ -314,7 +314,7 @@ public class CoachService {
 
         List<String> goals = goalRepo.findByUserIdAndStatusInOrderByDetectedAtDesc(
                         userId,
-                        List.of(GoalIntegrationService.GOAL_STATUS_PENDING, GoalIntegrationService.GOAL_STATUS_ACTIVE)
+                        GoalStatus.openStatuses()
                 )
                 .stream()
                 .limit(MAX_GOALS)

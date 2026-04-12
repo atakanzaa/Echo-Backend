@@ -26,6 +26,7 @@ public class AppProperties {
     @Valid private Storage storage = new Storage();
     @Valid private Cors cors = new Cors();
     @Valid private Google google = new Google();
+    @Valid private Resend resend = new Resend();
     @NestedConfigurationProperty
     @Valid private Apple apple = new Apple();
     private Prompts prompts = new Prompts();
@@ -42,6 +43,13 @@ public class AppProperties {
         String fallbackProvider = ai.getFallbackProvider();
         if (StringUtils.hasText(fallbackProvider)) {
             validateProviderKey(normalizeProvider(fallbackProvider));
+        }
+
+        if (resend.isEnabled()) {
+            requireApiKey("RESEND_API_KEY", resend.getApiKey());
+            if (!StringUtils.hasText(resend.getFromAddress())) {
+                throw new IllegalStateException("RESEND_FROM_ADDRESS is required when Resend is enabled");
+            }
         }
     }
 
@@ -143,6 +151,17 @@ public class AppProperties {
     public static class Google {
         private String clientId;
         private String tokenInfoUrl = "https://oauth2.googleapis.com/tokeninfo";
+    }
+
+    @Getter @Setter
+    public static class Resend {
+        private String apiKey;
+        private String webhookSecret;
+        private String fromAddress = "no-reply@echojournal.net";
+        private String fromName = "Echo Journal";
+        private String replyToAddress;
+        private String supportAddress = "support@echojournal.net";
+        private boolean enabled = true;
     }
 
     private String normalizeProvider(String provider) {

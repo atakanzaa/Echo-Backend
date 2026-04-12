@@ -1,11 +1,13 @@
 package com.echo.controller;
 
+import com.echo.dto.request.CreateGoalRequest;
 import com.echo.dto.response.GoalResponse;
 import com.echo.dto.response.GoalSuggestionResponse;
 import com.echo.dto.response.PagedResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.GoalIntegrationService;
 import com.echo.service.GoalService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +45,13 @@ public class GoalController {
             @AuthenticationPrincipal UserPrincipal p) {
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(goalService.getAllGoals(p.getId(), pageable));
+    }
+
+    @PostMapping
+    public ResponseEntity<GoalResponse> createGoal(
+            @Valid @RequestBody CreateGoalRequest request,
+            @AuthenticationPrincipal UserPrincipal p) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(goalService.createManualGoal(p.getId(), request));
     }
 
     @GetMapping("/suggestions")

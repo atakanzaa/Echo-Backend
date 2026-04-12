@@ -15,7 +15,9 @@ public record UserResponse(
         int    longestStreak,
         int    totalEntries,
         BigDecimal moodScoreAvg,
-        String language
+        String language,
+        boolean emailVerified,
+        boolean passwordLoginEnabled
 ) {
     public static UserResponse from(User user) {
         // Recompute effective streak at read time: if the user missed yesterday, streak is broken
@@ -34,7 +36,9 @@ public record UserResponse(
                 user.getLongestStreak(),
                 user.getTotalEntries(),
                 user.getMoodScoreAvg(),
-                user.getPreferredLanguage()
+                user.getPreferredLanguage(),
+                user.isEmailVerified(),
+                user.isPasswordLoginEnabled()
         );
     }
 }

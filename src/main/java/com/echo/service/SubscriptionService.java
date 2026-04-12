@@ -7,12 +7,14 @@ import com.echo.domain.subscription.SubscriptionTier;
 import com.echo.domain.user.User;
 import com.echo.dto.response.SubscriptionResponse;
 import com.echo.exception.ResourceNotFoundException;
+import com.echo.event.PurchaseConfirmedEvent;
 import com.echo.repository.SubscriptionEventRepository;
 import com.echo.repository.SubscriptionRepository;
 import com.echo.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,7 @@ public class SubscriptionService {
     private final AppleStoreKitService appleStoreKitService;
     private final EntitlementService entitlementService;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public SubscriptionResponse verifyAndActivate(UUID userId, String signedTransaction) {
@@ -63,6 +66,13 @@ public class SubscriptionService {
         String eventType = isNew ? "SUBSCRIBED" : "RENEWED";
         saveEvent(saved, user, eventType, tx.rawClaims());
         entitlementService.invalidateCache(userId);
+        eventPublisher.publishEvent(new PurchaseConfirmedEvent(
+                user.getId(),
+                user.getEmail(),
+                user.getPreferredLanguage(),
+                saved.getProductId(),
+                OffsetDateTime.now()
+        ));
 
         return toResponse(user, saved);
     }
