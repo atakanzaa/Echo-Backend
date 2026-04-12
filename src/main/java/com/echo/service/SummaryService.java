@@ -125,8 +125,8 @@ public class SummaryService {
     private String buildNarrativeSummary(UUID userId, List<AnalysisResult> results,
                                           SummaryPeriod period, double avgMood, String language) {
         try {
-            var synthesis = synthesisService.synthesize(userId, period.getDays());
-            if (synthesis.narrativeSummary() != null) return synthesis.narrativeSummary();
+            var synthesis = synthesisService.getLatestCachedSynthesis(userId);
+            if (synthesis != null && synthesis.narrativeSummary() != null) return synthesis.narrativeSummary();
         } catch (Exception e) {
             log.warn("AI narrative failed, using fallback: {}", e.getMessage());
         }

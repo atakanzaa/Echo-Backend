@@ -43,4 +43,14 @@ public class CacheConfig {
                 .maximumSize(10)
                 .build();
     }
+
+    // userId-only key (no timestamp) — survives journal/coach activity, 1-hour TTL.
+    // Populated whenever any synthesis completes; consumed by AchievementService.
+    @Bean
+    public Cache<UUID, AISynthesisResponse> growthCache() {
+        return Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.HOURS)
+                .maximumSize(10_000)
+                .build();
+    }
 }

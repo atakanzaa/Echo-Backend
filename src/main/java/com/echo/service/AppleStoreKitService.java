@@ -17,6 +17,8 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.util.Base64;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.echo.exception.ServiceUnavailableException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -54,7 +56,7 @@ public class AppleStoreKitService {
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final Cache<String, JWKSet> jwksCache = Caffeine.newBuilder()
             .expireAfterWrite(6, TimeUnit.HOURS)
             .maximumSize(4)
@@ -157,7 +159,8 @@ public class AppleStoreKitService {
         return null;
     }
 
-    private JWKSet getJwkSet(String environment) {
+    @CircuitBreaker(name = "apple-storekit", fallbackMethod = "getJwkSetFallback")
+    JWKSet getJwkSet(String environment) {
         JWKSet cached = jwksCache.getIfPresent(environment);
         if (cached != null) {
             return cached;
@@ -177,6 +180,11 @@ public class AppleStoreKitService {
         } catch (Exception ex) {
             throw new IllegalStateException("Invalid Apple JWKS payload", ex);
         }
+    }
+
+    JWKSet getJwkSetFallback(String environment, Exception ex) {
+        log.error("Apple JWKS fetch failed (circuit open): env={}, error={}", environment, ex.getMessage());
+        throw new ServiceUnavailableException("Apple StoreKit is temporarily unavailable");
     }
 
     private void verifyCertificateChain(JWSHeader header) {

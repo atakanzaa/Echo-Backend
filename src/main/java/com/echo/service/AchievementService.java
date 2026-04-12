@@ -58,10 +58,10 @@ public class AchievementService {
     private void doCheckAndAward(UUID userId) {
         User user = userRepository.findById(userId).orElseThrow();
 
-        // Streak hesapla
+        // Update streak.
         updateStreak(user);
 
-        // badge check
+        // Check and award badges.
         Set<String> earned = userAchievementRepository.findByUserId(userId)
                 .stream().map(UserAchievement::getBadgeKey).collect(Collectors.toSet());
 
@@ -131,9 +131,8 @@ public class AchievementService {
         User user = userRepository.findById(userId).orElseThrow();
         BadgeDefinition badge = resolveBadge(badgeKey);
 
-        Optional<UserAchievement> earnedAchievement = userAchievementRepository.findByUserId(userId).stream()
-                .filter(a -> a.getBadgeKey().equals(badge.name()))
-                .findFirst();
+        Optional<UserAchievement> earnedAchievement =
+                userAchievementRepository.findByUserIdAndBadgeKey(userId, badge.name());
 
         return new AchievementDetailResponse(
                 badge.name(),
@@ -182,7 +181,7 @@ public class AchievementService {
         } else if (lastEntry.equals(yesterday)) {
             user.setCurrentStreak(user.getCurrentStreak() + 1);
         }
-        // streak unchanged if already journaled today
+        // Streak unchanged if user already journaled today.
 
         user.setLongestStreak(Math.max(user.getLongestStreak(), user.getCurrentStreak()));
         user.setLastEntryDate(today);
@@ -193,18 +192,16 @@ public class AchievementService {
         return (int) journalEntryRepository.countTotalWordsByUserId(userId);
     }
 
-    /**
-     * AI'dan growth assessment iste — fallback olarak kural tabanlı hesaplama kullan.
-     * Badge logic dokunulmadı (deterministik kalmaya devam ediyor).
-     */
+    // Request AI growth assessment — use rule-based fallback if no cached synthesis available.
+    // Never triggers a blocking AI call; synthesis is pre-populated by Insights page or session-end async.
     private GrowthAssessment generateGrowthAssessment(UUID userId, User user) {
         try {
-            var synthesis = synthesisService.synthesize(userId, 30);
-            if (synthesis.growthLabel() != null && synthesis.growthMessage() != null) {
+            var synthesis = synthesisService.getLatestCachedSynthesis(userId);
+            if (synthesis != null && synthesis.growthLabel() != null && synthesis.growthMessage() != null) {
                 return new GrowthAssessment(synthesis.growthScore(), synthesis.growthLabel(), synthesis.growthMessage());
             }
         } catch (Exception e) {
-            log.warn("AI growth assessment oluşturulamadı, fallback kullanılıyor: {}", e.getMessage());
+            log.warn("Cached growth lookup failed: {}", e.getMessage());
         }
         double score = Math.min(100.0, (user.getCurrentStreak() * 2.0) + (user.getTotalEntries() * 1.5));
         return new GrowthAssessment((int) score, computeFallbackLevel(user), computeFallbackMessage(user));

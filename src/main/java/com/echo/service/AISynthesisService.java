@@ -5,6 +5,7 @@ import com.echo.ai.AISynthesisRequest;
 import com.echo.ai.AISynthesisResponse;
 import com.echo.domain.coach.CoachMessage;
 import com.echo.domain.coach.MessageRole;
+import com.echo.domain.goal.GoalStatus;
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.user.User;
 import com.echo.repository.AnalysisResultRepository;
@@ -43,6 +44,7 @@ public class AISynthesisService {
     private final GoalRepository           goalRepo;
     private final UserRepository           userRepo;
     private final Cache<String, AISynthesisResponse> synthesisCache;
+    private final Cache<UUID, AISynthesisResponse>   growthCache;
 
     private static final int MAX_ENTRIES         = 30;
     private static final int MAX_COACH_EXCHANGES = 20;
@@ -67,6 +69,7 @@ public class AISynthesisService {
         memoryService.updateFromSynthesis(userId, response);
 
         synthesisCache.put(cacheKey, response);
+        growthCache.put(userId, response);
         log.info("Synthesis completed: userId={}, period={}, growthScore={}",
                 userId, periodDays, response.growthScore());
         return response;
@@ -85,6 +88,11 @@ public class AISynthesisService {
         } catch (Exception e) {
             log.warn("Async synthesis failed: userId={}, error={}", userId, e.getMessage());
         }
+    }
+
+    /** Non-blocking lookup — returns null if no synthesis has run yet for this user. */
+    public AISynthesisResponse getLatestCachedSynthesis(UUID userId) {
+        return growthCache.getIfPresent(userId);
     }
 
     // ── Cache Key ─────────────────────────────────────────────────────────────
@@ -137,7 +145,7 @@ public class AISynthesisService {
         List<String> activeGoals = goalRepo
                 .findByUserIdAndStatusInOrderByDetectedAtDesc(
                         userId,
-                        List.of(GoalIntegrationService.GOAL_STATUS_PENDING, GoalIntegrationService.GOAL_STATUS_ACTIVE)
+                        GoalStatus.openStatuses()
                 )
                 .stream()
                 .limit(MAX_GOALS)
@@ -146,7 +154,7 @@ public class AISynthesisService {
                         : g.getTitle())
                 .toList();
 
-        int completedCount = goalRepo.countByUserIdAndStatus(userId, "COMPLETED");
+        int completedCount = goalRepo.countByUserIdAndStatus(userId, GoalStatus.COMPLETED);
 
         User user = userRepo.findById(userId).orElseThrow();
         String userProfile = memoryService.getUserProfile(userId);
