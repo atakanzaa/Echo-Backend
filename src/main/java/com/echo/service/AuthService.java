@@ -133,7 +133,7 @@ public class AuthService {
     @Transactional
     public AuthResponse refresh(String rawRefreshToken) {
         String hash = hashToken(rawRefreshToken);
-        var stored = refreshTokenRepository.findByTokenHash(hash)
+        var stored = refreshTokenRepository.findByTokenHashForUpdate(hash)
                 .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
         if (stored.isExpired()) {
@@ -141,16 +141,18 @@ public class AuthService {
             throw new UnauthorizedException("Refresh token expired, please login again");
         }
 
-        // rotate: delete old token, issue new pair
+        // Consume the refresh token under a DB row lock so only one concurrent
+        // request can rotate it successfully. Any follower request will observe
+        // the row as missing after the first transaction commits and return 401.
+        User user = stored.getUser();
         refreshTokenRepository.delete(stored);
-        return buildAuthResponse(stored.getUser());
+        return buildAuthResponse(user);
     }
 
     @Transactional
     public void logout(String rawRefreshToken) {
         String hash = hashToken(rawRefreshToken);
-        refreshTokenRepository.findByTokenHash(hash)
-                .ifPresent(refreshTokenRepository::delete);
+        refreshTokenRepository.deleteByTokenHash(hash);
     }
 
     @Transactional(readOnly = true)
