@@ -22,7 +22,7 @@ Echo Backend is the server-side API for the Echo iOS app. It handles voice journ
 | Email | Resend |
 | Reverse proxy | Caddy (TLS termination) |
 | Container | Docker · Docker Compose |
-| Observability | Spring Actuator · Prometheus · structured JSON logging |
+| Observability | Spring Actuator · structured JSON logging |
 
 ---
 
@@ -213,7 +213,6 @@ Migrations live in `src/main/resources/db/migration`. Current schema covers: use
 | `GET /actuator/health/readiness` | Public |
 | `GET /actuator/health` | Public |
 | `GET /actuator/metrics` | ROLE_ADMIN |
-| `GET /actuator/prometheus` | ROLE_ADMIN |
 
 Structured JSON logging is configured via `logback-spring.xml`. Resilience4j circuit breaker instances are registered as health indicators.
 

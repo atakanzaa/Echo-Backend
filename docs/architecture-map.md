@@ -1,9 +1,9 @@
 # Echo Backend Architecture Map
 
-Bu belge, `Echo Backend` kod tabaninin buyuk resmini tek yerde toplar.
-Literal anlamda "yuzde 100 her seyi tek diyagramda" yapmak gercekci degil, ama bu dosya seni proje uzerinde hizla hakimiyet kurabilecegin noktaya getirir.
+This document captures the big picture of the Echo Backend codebase in one place.
+A single diagram covering every detail is impractical, but this map is enough to build a solid mental model of the system quickly.
 
-Bu harita mevcut workspace'teki kodu baz alir ve premium membership katmanini da icerir.
+The map reflects the current codebase and includes the premium membership layer.
 
 ## 1. Mega Runtime Map
 
