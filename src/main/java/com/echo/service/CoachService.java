@@ -24,6 +24,7 @@ import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -34,6 +35,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -85,17 +88,15 @@ public class CoachService {
 
         CoachSession session = CoachSession.builder().user(user).build();
 
-        // journal-linked session
         String journalContext = null;
         if (journalEntryId != null) {
-            JournalEntry journalEntry = journalEntryRepo.findById(journalEntryId).orElse(null);
-            if (journalEntry != null) {
-                session.setJournalEntry(journalEntry);
-                journalContext = buildJournalContext(journalEntry);
-                String dateStr = journalEntry.getEntryDate()
-                        .format(DateTimeFormatter.ofPattern("d MMMM", new Locale(user.getPreferredLanguage())));
-                session.setTitle(dateStr + " Journal Discussion");
-            }
+            JournalEntry journalEntry = journalEntryRepo.findByIdAndUserId(journalEntryId, userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Journal entry not found"));
+            session.setJournalEntry(journalEntry);
+            journalContext = buildJournalContext(journalEntry);
+            String dateStr = journalEntry.getEntryDate()
+                    .format(DateTimeFormatter.ofPattern("d MMMM", new Locale(user.getPreferredLanguage())));
+            session.setTitle(dateStr + " Journal Discussion");
         }
 
         if (session.getTitle() == null) {
@@ -157,7 +158,8 @@ public class CoachService {
             var response = router.coach().chat(new AICoachRequest(
                     prompt, List.of(),
                     userMemoryService.getUserProfile(userId),
-                    ctx.moodContext(), ctx.topics(), ctx.goals(), name, language
+                    ctx.moodContext(), ctx.topics(), ctx.goals(), name, language,
+                    buildNarrative(ctx, language)
             ));
             return response.content();
         } catch (Exception e) {
@@ -182,11 +184,14 @@ public class CoachService {
 
         // Phase 1: validate + load context in a short transaction — DB connection released before AI call
         SendMessageContext ctx = readTx.execute(status -> {
-            sessionRepo.findByIdAndUserId(sessionId, userId)
+            CoachSession session = sessionRepo.findByIdAndUserId(sessionId, userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+            if (!session.isActive()) {
+                throw new IllegalArgumentException("Coach session is inactive");
+            }
             User user = userRepo.findById(userId).orElseThrow();
 
-            if (!entitlementService.consumeSessionQuota(userId, sessionId, FeatureKey.COACH_MESSAGES_PER_SESSION)) {
+            if (!entitlementService.hasSessionQuota(userId, sessionId, FeatureKey.COACH_MESSAGES_PER_SESSION)) {
                 throw new QuotaExceededException(
                         "COACH_SESSION_MESSAGE_LIMIT",
                         "Message limit reached for this coach session. Upgrade to Premium for longer conversations."
@@ -199,56 +204,67 @@ public class CoachService {
                 );
             }
 
-            List<CoachMessage> allMessages = messageRepo.findBySessionIdOrderByCreatedAtAsc(sessionId);
-            int size = allMessages.size();
-            List<CoachMessage> recent = size > MAX_HISTORY ? allMessages.subList(size - MAX_HISTORY, size) : allMessages;
+            List<CoachMessage> recent = new ArrayList<>(
+                    messageRepo.findBySessionIdOrderByCreatedAtDesc(sessionId, PageRequest.of(0, MAX_HISTORY))
+            );
+            Collections.reverse(recent);
+            long userMessageCount = messageRepo.countBySessionIdAndRole(sessionId, MessageRole.USER);
 
             List<AICoachRequest.ChatMessage> chatHistory = recent.stream()
                     .map(m -> new AICoachRequest.ChatMessage(m.getRole().name().toLowerCase(), m.getContent()))
                     .toList();
 
             return new SendMessageContext(chatHistory, buildUserContext(userId),
-                    user.getDisplayName(), user.getPreferredLanguage(), size);
+                    user.getDisplayName(), user.getPreferredLanguage(), userMessageCount);
         });
 
         // Phase 2: AI call — no DB connection held
-        var aiResponse = router.coach().chat(new AICoachRequest(
-                request.content(), ctx.chatHistory(),
-                userMemoryService.getUserProfile(userId),
-                ctx.userContext().moodContext(), ctx.userContext().topics(), ctx.userContext().goals(),
-                ctx.displayName(), ctx.language()
-        ));
+        var aiResponse = callCoachWithQuotaRefund(sessionId, userId, request, ctx);
 
         // Phase 3: persist in a new write transaction
         TransactionTemplate writeTx = new TransactionTemplate(transactionManager);
-        return writeTx.execute(status -> {
-            CoachSession session = sessionRepo.findByIdAndUserId(sessionId, userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
-            User user = userRepo.findById(userId).orElseThrow();
+        try {
+            return writeTx.execute(status -> {
+                CoachSession session = sessionRepo.findByIdAndUserIdForUpdate(sessionId, userId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+                if (!session.isActive()) {
+                    throw new IllegalArgumentException("Coach session is inactive");
+                }
+                if (!entitlementService.hasSessionQuota(userId, sessionId, FeatureKey.COACH_MESSAGES_PER_SESSION)) {
+                    throw new QuotaExceededException(
+                            "COACH_SESSION_MESSAGE_LIMIT",
+                            "Message limit reached for this coach session. Upgrade to Premium for longer conversations."
+                    );
+                }
+                User user = userRepo.findById(userId).orElseThrow();
 
-            CoachMessage userMsg = CoachMessage.builder()
-                    .session(session).user(user).role(MessageRole.USER).content(request.content()).build();
-            messageRepo.saveAndFlush(userMsg);
+                CoachMessage userMsg = CoachMessage.builder()
+                        .session(session).user(user).role(MessageRole.USER).content(request.content()).build();
+                messageRepo.saveAndFlush(userMsg);
 
-            CoachMessage assistantMsg = CoachMessage.builder()
-                    .session(session).user(user).role(MessageRole.ASSISTANT).content(aiResponse.content()).build();
-            messageRepo.saveAndFlush(assistantMsg);
+                CoachMessage assistantMsg = CoachMessage.builder()
+                        .session(session).user(user).role(MessageRole.ASSISTANT).content(aiResponse.content()).build();
+                messageRepo.saveAndFlush(assistantMsg);
 
-            try {
-                goalIntegrationService.processCoachUtterance(userId, sessionId, userMsg.getId(), request.content());
-            } catch (Exception e) {
-                log.warn("Goal completion detection skipped for coach message: sessionId={}, userId={}, error={}",
-                        sessionId, userId, e.getMessage());
-            }
+                try {
+                    goalIntegrationService.processCoachUtterance(userId, sessionId, userMsg.getId(), request.content());
+                } catch (Exception e) {
+                    log.warn("Goal completion detection skipped for coach message: sessionId={}, userId={}, error={}",
+                            sessionId, userId, e.getMessage());
+                }
 
-            int newTotal = ctx.totalMessageCount() + 2;
-            int interval = entitlementService.getLimit(userId, FeatureKey.SYNTHESIS_INTERVAL);
-            if (interval > 0 && newTotal >= interval && newTotal % interval == 0) {
-                synthesisService.synthesizeAsync(userId);
-            }
+                long newUserMessageCount = ctx.userMessageCount() + 1;
+                int interval = entitlementService.getLimit(userId, FeatureKey.SYNTHESIS_INTERVAL);
+                if (interval > 0 && newUserMessageCount >= interval && newUserMessageCount % interval == 0) {
+                    synthesisService.synthesizeAsync(userId);
+                }
 
-            return List.of(CoachMessageResponse.from(userMsg), CoachMessageResponse.from(assistantMsg));
-        });
+                return List.of(CoachMessageResponse.from(userMsg), CoachMessageResponse.from(assistantMsg));
+            });
+        } catch (RuntimeException ex) {
+            entitlementService.refundQuota(userId, FeatureKey.COACH_MESSAGES_TOTAL);
+            throw ex;
+        }
     }
 
     private record SendMessageContext(
@@ -256,8 +272,27 @@ public class CoachService {
             UserContext userContext,
             String displayName,
             String language,
-            int totalMessageCount
+            long userMessageCount
     ) {}
+
+    private com.echo.ai.AICoachResponse callCoachWithQuotaRefund(UUID sessionId,
+                                                                  UUID userId,
+                                                                  SendCoachMessageRequest request,
+                                                                  SendMessageContext ctx) {
+        try {
+            return router.coach().chat(new AICoachRequest(
+                    request.content(), ctx.chatHistory(),
+                    userMemoryService.getUserProfile(userId),
+                    ctx.userContext().moodContext(), ctx.userContext().topics(), ctx.userContext().goals(),
+                    ctx.displayName(), ctx.language(),
+                    buildNarrative(ctx.userContext(), ctx.language())
+            ));
+        } catch (RuntimeException ex) {
+            entitlementService.refundQuota(userId, FeatureKey.COACH_MESSAGES_TOTAL);
+            log.warn("Coach AI call failed: sessionId={} userId={} error={}", sessionId, userId, ex.getMessage());
+            throw ex;
+        }
+    }
 
     // soft-close session and trigger async profile update
     @Transactional
@@ -327,4 +362,67 @@ public class CoachService {
     }
 
     private record UserContext(String moodContext, List<String> topics, List<String> goals) {}
+
+    // Builds a natural-language paragraph about the user — so the coach sounds like someone who
+    // already knows the person, instead of listing facts under separate headers.
+    private String buildNarrative(UserContext ctx, String language) {
+        boolean tr = language == null || !"en".equalsIgnoreCase(language);
+        StringBuilder sb = new StringBuilder();
+
+        String moodLine = describeMood(ctx.moodContext(), tr);
+        if (moodLine != null) {
+            sb.append(moodLine).append(" ");
+        }
+
+        if (ctx.topics() != null && !ctx.topics().isEmpty()) {
+            sb.append(tr ? "Sık bahsettiği konular: " : "Recent topics: ")
+              .append(String.join(", ", ctx.topics()))
+              .append(". ");
+        }
+        if (ctx.goals() != null && !ctx.goals().isEmpty()) {
+            sb.append(tr ? "Üstünde çalıştığı şeyler: " : "Working on: ")
+              .append(String.join(", ", ctx.goals()))
+              .append(".");
+        }
+        return sb.toString().trim();
+    }
+
+    // Turns the numeric moodContext string ("Last 7 days: 3 entries. Average mood: 0.42/1.00,
+    // trend: improving.") into a soft human sentence.
+    private String describeMood(String moodContext, boolean tr) {
+        if (moodContext == null) return null;
+        java.util.regex.Matcher avgM = java.util.regex.Pattern
+                .compile("Average mood: ([0-9.]+)").matcher(moodContext);
+        java.util.regex.Matcher trendM = java.util.regex.Pattern
+                .compile("trend: (\\w+)").matcher(moodContext);
+        if (!avgM.find()) return null;
+
+        double avg;
+        try { avg = Double.parseDouble(avgM.group(1)); } catch (NumberFormatException e) { return null; }
+        String trend = trendM.find() ? trendM.group(1) : "stable";
+
+        String moodWord;
+        if (tr) {
+            moodWord = avg >= 0.75 ? "moralı iyi" : avg >= 0.55 ? "orta seviyede" : "biraz düşük";
+        } else {
+            moodWord = avg >= 0.75 ? "doing well" : avg >= 0.55 ? "mixed" : "a bit low";
+        }
+
+        String trendClause;
+        if (tr) {
+            trendClause = switch (trend) {
+                case "improving" -> ", son günlerde toparlanıyor gibi";
+                case "declining" -> ", ama son günlerde düşüşte";
+                default -> "";
+            };
+            return "Son bir hafta " + moodWord + trendClause + ".";
+        } else {
+            trendClause = switch (trend) {
+                case "improving" -> ", picking up lately";
+                case "declining" -> ", trending down recently";
+                default -> "";
+            };
+            return "Past week has been " + moodWord + trendClause + ".";
+        }
+    }
 }

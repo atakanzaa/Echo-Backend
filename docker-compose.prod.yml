@@ -38,6 +38,13 @@ services:
     mem_limit: 2g
     cpus: "1.50"
     pids_limit: 512
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     logging:
       driver: "json-file"
       options:

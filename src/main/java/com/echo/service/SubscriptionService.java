@@ -7,6 +7,7 @@ import com.echo.domain.subscription.SubscriptionTier;
 import com.echo.domain.user.User;
 import com.echo.dto.response.SubscriptionResponse;
 import com.echo.exception.ResourceNotFoundException;
+import com.echo.exception.SubscriptionOwnershipException;
 import com.echo.event.PurchaseConfirmedEvent;
 import com.echo.repository.SubscriptionEventRepository;
 import com.echo.repository.SubscriptionRepository;
@@ -56,6 +57,8 @@ public class SubscriptionService {
         Subscription subscription = subscriptionRepository.findByOriginalTransactionId(originalTransactionId)
                 .orElseGet(() -> subscriptionRepository.findByUserId(userId).orElseGet(Subscription::new));
 
+        rejectIfOwnedByAnotherUser(subscription, user, originalTransactionId);
+
         boolean isNew = subscription.getId() == null;
         upsertSubscriptionFromTransaction(subscription, user, tx, signedTransaction, SubscriptionStatus.ACTIVE);
         Subscription saved = subscriptionRepository.save(subscription);
@@ -92,6 +95,8 @@ public class SubscriptionService {
 
         Subscription subscription = subscriptionRepository.findByOriginalTransactionId(originalTransactionId)
                 .orElseGet(Subscription::new);
+
+        rejectIfOwnedByAnotherUser(subscription, user, originalTransactionId);
 
         upsertSubscriptionFromTransaction(subscription, user, tx, signedTransaction, SubscriptionStatus.ACTIVE);
         Subscription saved = subscriptionRepository.save(subscription);
@@ -209,6 +214,20 @@ public class SubscriptionService {
         subscriptionEventRepository.saveAll(events);
 
         log.info("Expired subscription sweep completed: count={}", expiredCandidates.size());
+    }
+
+    private void rejectIfOwnedByAnotherUser(Subscription subscription,
+                                            User currentUser,
+                                            String originalTransactionId) {
+        User existingOwner = subscription.getUser();
+        if (existingOwner == null || existingOwner.getId() == null) {
+            return;
+        }
+        if (!existingOwner.getId().equals(currentUser.getId())) {
+            log.warn("Subscription replay blocked: originalTransactionId={} existingOwner={} requester={}",
+                    originalTransactionId, existingOwner.getId(), currentUser.getId());
+            throw new SubscriptionOwnershipException("This purchase is already linked to another account");
+        }
     }
 
     private void upsertSubscriptionFromTransaction(Subscription subscription,

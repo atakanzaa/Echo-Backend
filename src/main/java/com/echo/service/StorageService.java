@@ -51,10 +51,10 @@ public class StorageService {
      * Allowed types: JPEG, PNG, WEBP. Max size: 10 MB.
      */
     public String uploadImage(MultipartFile file) {
-        validateImage(file);
+        String detectedMime = validateImageAndDetectMime(file);
         return switch (props.getStorage().getType()) {
-            case "local" -> saveImageLocally(file);
-            case "s3"    -> saveImageToS3(file);
+            case "local" -> saveImageLocally(file, detectedMime);
+            case "s3"    -> saveImageToS3(file, detectedMime);
             default      -> throw new IllegalStateException("Unknown storage type: " + props.getStorage().getType());
         };
     }
@@ -73,26 +73,72 @@ public class StorageService {
 
     // ── Validation ────────────────────────────────────────────────────────────
 
-    private void validateImage(MultipartFile file) {
+    // Validates size and detects MIME from magic bytes — ignores client-supplied Content-Type.
+    private String validateImageAndDetectMime(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Image file is required");
         }
         if (file.getSize() > MAX_IMAGE_BYTES) {
             throw new IllegalArgumentException("Image exceeds 10 MB limit");
         }
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType)) {
-            throw new IllegalArgumentException("Invalid image type. Allowed: JPEG, PNG, WEBP");
+        try {
+            String detected = detectImageMime(readHead(file));
+            if (detected == null || !ALLOWED_IMAGE_TYPES.contains(detected)) {
+                throw new IllegalArgumentException("Invalid image type. Allowed: JPEG, PNG, WEBP");
+            }
+            return detected;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to read image", e);
         }
+    }
+
+    private byte[] readHead(MultipartFile file) throws IOException {
+        try (var in = file.getInputStream()) {
+            byte[] buf = new byte[16];
+            int read = 0;
+            while (read < buf.length) {
+                int n = in.read(buf, read, buf.length - read);
+                if (n < 0) break;
+                read += n;
+            }
+            if (read < buf.length) {
+                byte[] trimmed = new byte[read];
+                System.arraycopy(buf, 0, trimmed, 0, read);
+                return trimmed;
+            }
+            return buf;
+        }
+    }
+
+    static String detectImageMime(byte[] head) {
+        if (head == null || head.length < 4) return null;
+        // JPEG: FF D8 FF
+        if ((head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF) {
+            return "image/jpeg";
+        }
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (head.length >= 8
+                && (head[0] & 0xFF) == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G'
+                && (head[4] & 0xFF) == 0x0D && (head[5] & 0xFF) == 0x0A
+                && (head[6] & 0xFF) == 0x1A && (head[7] & 0xFF) == 0x0A) {
+            return "image/png";
+        }
+        // WEBP: "RIFF" .... "WEBP"
+        if (head.length >= 12
+                && head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
+                && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P') {
+            return "image/webp";
+        }
+        return null;
     }
 
     // ── Local Image ───────────────────────────────────────────────────────────
 
-    private String saveImageLocally(MultipartFile file) {
+    private String saveImageLocally(MultipartFile file, String mimeType) {
         try {
             Path dir = Paths.get(props.getStorage().getLocalImagesPath());
             Files.createDirectories(dir);
-            String filename = UUID.randomUUID() + "." + extensionForMime(file.getContentType());
+            String filename = UUID.randomUUID() + "." + extensionForMime(mimeType);
             Files.write(dir.resolve(filename), file.getBytes());
             log.debug("Image saved locally: {}", dir.resolve(filename));
             return "/uploads/images/" + filename;
@@ -115,15 +161,15 @@ public class StorageService {
 
     // ── S3 / R2 Image ─────────────────────────────────────────────────────────
 
-    private String saveImageToS3(MultipartFile file) {
+    private String saveImageToS3(MultipartFile file, String mimeType) {
         try {
-            String key = "community-images/" + UUID.randomUUID() + "." + extensionForMime(file.getContentType());
+            String key = "community-images/" + UUID.randomUUID() + "." + extensionForMime(mimeType);
             s3Client.orElseThrow(() -> new IllegalStateException("S3Client not configured"))
                     .putObject(
                             PutObjectRequest.builder()
                                     .bucket(props.getStorage().getImagesBucket())
                                     .key(key)
-                                    .contentType(file.getContentType())
+                                    .contentType(mimeType)
                                     .contentLength(file.getSize())
                                     .build(),
                             RequestBody.fromBytes(file.getBytes())

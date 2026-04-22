@@ -48,6 +48,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final int GENERAL_LIMIT_PER_MINUTE = 120;
 
     private final ObjectMapper objectMapper;
+    private final TrustedProxyResolver trustedProxyResolver;
     private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
             .maximumSize(50_000)
             .expireAfterAccess(Duration.ofHours(2))
@@ -128,11 +129,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+        // Trust CF-Connecting-IP only when the connection came from a known Cloudflare edge.
         String cloudflareIp = request.getHeader("CF-Connecting-IP");
-        if (StringUtils.hasText(cloudflareIp)) {
+        if (StringUtils.hasText(cloudflareIp) && trustedProxyResolver.isTrusted(remoteAddr)) {
             return cloudflareIp.trim();
         }
-        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "unknown";
+        return remoteAddr != null ? remoteAddr : "unknown";
     }
 
     private String resolveAuthenticatedUserId() {

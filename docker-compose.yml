@@ -4,8 +4,11 @@ services:
   app:
     build: .
     container_name: echo-backend
+    # Bind app port to loopback only. Caddy (or any other trusted reverse
+    # proxy) on the same host reaches it via 127.0.0.1; attackers who find
+    # the origin IP cannot bypass the proxy and forge CF-Connecting-IP.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     env_file:
       - .env.prod
     environment:
