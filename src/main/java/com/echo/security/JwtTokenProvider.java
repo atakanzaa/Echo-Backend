@@ -17,8 +17,9 @@ import java.util.UUID;
 @Component
 public class JwtTokenProvider {
 
-    private static final String ISSUER = "echo-backend";
-    private static final String AUDIENCE = "echo-ios";
+    private static final String ISSUER        = "echo-backend";
+    private static final String AUDIENCE      = "echo-ios";
+    private static final String CLAIM_VERSION = "tv"; // token version
 
     private final SecretKey signingKey;
     private final long accessTokenExpiryMs;
@@ -33,16 +34,24 @@ public class JwtTokenProvider {
         this.accessTokenExpiryMs = props.getJwt().getAccessTokenExpirySeconds() * 1000L;
     }
 
-    public String generateAccessToken(UUID userId, String email) {
+    public String generateAccessToken(UUID userId, String email, int tokenVersion) {
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("email", email)
+                .claim(CLAIM_VERSION, tokenVersion)
                 .issuer(ISSUER)
                 .audience().add(AUDIENCE).and()
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpiryMs))
                 .signWith(signingKey)
                 .compact();
+    }
+
+    public int getTokenVersionFromToken(String token) {
+        Claims claims = validateAndParseClaims(token);
+        Object tv = claims.get(CLAIM_VERSION);
+        if (tv instanceof Number n) return n.intValue();
+        return 0;
     }
 
     public Claims validateAndParseClaims(String token) {

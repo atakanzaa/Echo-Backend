@@ -44,7 +44,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
     }
 
     private static final String GEMINI_URL =
-            "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
+            "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent";
 
     private static final String SYNTHESIS_PROMPT_TEMPLATE = """
             You are the AI analysis and memory engine of the Echo app.
@@ -88,7 +88,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
     public AISynthesisResponse synthesize(AISynthesisRequest request) {
         String model  = props.getAi().getGemini().getAnalysisModel();
         String apiKey = props.getAi().getGemini().getApiKey();
-        String url    = String.format(GEMINI_URL, model, apiKey);
+        String url    = String.format(GEMINI_URL, model);
 
         String lang = request.language() != null ? request.language() : "tr";
         String synthesisPrompt = SYNTHESIS_PROMPT_TEMPLATE.replace("{language}", langName(lang));
@@ -110,14 +110,13 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
         );
 
         Map<?, ?> responseBody = geminiClient.execute(
-                restTemplate, url, requestBody, "SYNTHESIS", promptVersion);
+                restTemplate, url, apiKey, requestBody, "SYNTHESIS", promptVersion);
 
         String json = geminiClient.extractText(responseBody);
         try {
             return parseResponse(json);
         } catch (Exception e) {
-            // Parse failure is a code bug, not a service outage — do not trip CB.
-            log.error("synthesis_parse_error raw_json={} cause={}", json, e.getMessage(), e);
+            log.error("synthesis_parse_error provider=gemini cause={}", e.getMessage(), e);
             return emptyResponse(json);
         }
     }
@@ -225,7 +224,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Gemini synthesis response: " + json + " | cause: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to parse Gemini synthesis response", e);
         }
     }
 

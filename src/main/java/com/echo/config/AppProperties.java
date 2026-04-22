@@ -45,12 +45,24 @@ public class AppProperties {
             validateProviderKey(normalizeProvider(fallbackProvider));
         }
 
+        String transcriptionProvider = ai.getTranscriptionProvider();
+        if (StringUtils.hasText(transcriptionProvider)) {
+            validateProviderKey(normalizeProvider(transcriptionProvider));
+        }
+
+        String transcriptionFallbackProvider = ai.getTranscriptionFallbackProvider();
+        if (StringUtils.hasText(transcriptionFallbackProvider)) {
+            validateProviderKey(normalizeProvider(transcriptionFallbackProvider));
+        }
+
         if (resend.isEnabled()) {
             requireApiKey("RESEND_API_KEY", resend.getApiKey());
             if (!StringUtils.hasText(resend.getFromAddress())) {
                 throw new IllegalStateException("RESEND_FROM_ADDRESS is required when Resend is enabled");
             }
         }
+
+        validateStorage();
     }
 
     @Getter @Setter
@@ -64,6 +76,8 @@ public class AppProperties {
     public static class AI {
         @NotBlank private String provider = "openai";
         private String fallbackProvider = "openai";
+        private String transcriptionProvider;
+        private String transcriptionFallbackProvider;
         @Positive private int timeoutSeconds = 60;
         private OpenAI openai = new OpenAI();
         private Gemini gemini = new Gemini();
@@ -113,9 +127,8 @@ public class AppProperties {
 
     @Getter @Setter
     public static class Cors {
-        // Backward compatibility for existing config keys (allowed-origins)
-        private String[] allowedOrigins = {"*"};
-        private List<String> allowedOriginPatterns = List.of("*");
+        private String[] allowedOrigins = {};
+        private List<String> allowedOriginPatterns = List.of();
         private List<String> allowedMethods =
                 List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
         private List<String> allowedHeaders =
@@ -150,7 +163,6 @@ public class AppProperties {
     @Getter @Setter
     public static class Google {
         private String clientId;
-        private String tokenInfoUrl = "https://oauth2.googleapis.com/tokeninfo";
     }
 
     @Getter @Setter
@@ -184,6 +196,27 @@ public class AppProperties {
     private void requireApiKey(String envName, String value) {
         if (!StringUtils.hasText(value)) {
             throw new IllegalStateException(envName + " is required for selected AI provider");
+        }
+    }
+
+    private void validateStorage() {
+        String type = storage.getType() == null ? "local" : storage.getType().trim().toLowerCase(Locale.ROOT);
+        if (!type.equals("local") && !type.equals("s3")) {
+            throw new IllegalStateException("Unsupported storage type: " + storage.getType());
+        }
+        if (!type.equals("s3")) {
+            return;
+        }
+        requireStorageValue("APP_STORAGE_S3_ENDPOINT", storage.getS3Endpoint());
+        requireStorageValue("APP_STORAGE_S3_ACCESS_KEY", storage.getS3AccessKey());
+        requireStorageValue("APP_STORAGE_S3_SECRET_KEY", storage.getS3SecretKey());
+        requireStorageValue("APP_STORAGE_IMAGES_BUCKET", storage.getImagesBucket());
+        requireStorageValue("APP_STORAGE_IMAGES_PUBLIC_BASE_URL", storage.getImagesPublicBaseUrl());
+    }
+
+    private void requireStorageValue(String envName, String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalStateException(envName + " is required when app.storage.type=s3");
         }
     }
 }

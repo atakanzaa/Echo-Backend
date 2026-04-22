@@ -40,10 +40,15 @@ public class User {
     @Builder.Default
     private boolean active = true;
 
-    // RBAC — V13 migration'da eklendi: USER | ADMIN
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String role = "USER";
+
+    // Incremented on password-change or reset; access tokens carrying a lower
+    // version are rejected, providing effective revocation without a blacklist.
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private int tokenVersion = 0;
 
     @Column(name = "subscription_tier", nullable = false, length = 20)
     @Builder.Default

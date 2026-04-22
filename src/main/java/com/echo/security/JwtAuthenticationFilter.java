@@ -33,14 +33,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = extractToken(request);
 
             if (StringUtils.hasText(token) && jwtTokenProvider.isTokenValid(token)) {
-                var userId = jwtTokenProvider.getUserIdFromToken(token);
+                var userId      = jwtTokenProvider.getUserIdFromToken(token);
                 var userDetails = userDetailsService.loadByUserId(userId);
 
-                var auth = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                int claimedVersion = jwtTokenProvider.getTokenVersionFromToken(token);
+                if (claimedVersion < userDetails.getTokenVersion()) {
+                    log.debug("Rejected stale access token: userId={}", userId);
+                } else {
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             }
         } catch (Exception e) {
             // do not expose internal errors — just skip authentication

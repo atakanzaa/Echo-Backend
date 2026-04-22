@@ -41,7 +41,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
     }
 
     private static final String GEMINI_URL =
-            "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
+            "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent";
 
     /**
      * Static system instruction — Gemini caches this prefix automatically (75% token discount).
@@ -81,7 +81,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
     public AIAnalysisResponse analyze(AIAnalysisRequest request) {
         String model  = props.getAi().getGemini().getAnalysisModel();
         String apiKey = props.getAi().getGemini().getApiKey();
-        String url    = String.format(GEMINI_URL, model, apiKey);
+        String url    = String.format(GEMINI_URL, model);
 
         // User content is wrapped in explicit delimiters to prevent prompt injection
         String userPrompt = buildUserPrompt(request.transcript(), request.language());
@@ -105,7 +105,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
         );
 
         Map<?, ?> responseBody = geminiClient.execute(
-                restTemplate, url, requestBody, "JOURNAL_ANALYSIS", promptVersion);
+                restTemplate, url, apiKey, requestBody, "JOURNAL_ANALYSIS", promptVersion);
 
         String json = geminiClient.extractText(responseBody);
         return parseResponse(json);
@@ -143,7 +143,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
         );
 
         Map<?, ?> responseBody = geminiClient.execute(
-                restTemplate, url, requestBody, "GOAL_MATCH", promptVersion);
+                restTemplate, url, apiKey, requestBody, "GOAL_MATCH", promptVersion);
 
         return parseGoalMatchDecision(geminiClient.extractText(responseBody));
     }
@@ -232,7 +232,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Gemini response: " + json, e);
+            throw new RuntimeException("Failed to parse Gemini analysis response", e);
         }
     }
 
@@ -275,7 +275,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
                     node.path("reason").asText("")
             );
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Gemini goal match response: " + json, e);
+            throw new RuntimeException("Failed to parse Gemini goal match response", e);
         }
     }
 

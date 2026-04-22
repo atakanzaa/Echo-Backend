@@ -49,6 +49,8 @@ app:
   ai:
     provider: ${AI_PROVIDER:gemini}
     fallback-provider: ${AI_FALLBACK_PROVIDER:}
+    transcription-provider: ${AI_TRANSCRIPTION_PROVIDER:}
+    transcription-fallback-provider: ${AI_TRANSCRIPTION_FALLBACK_PROVIDER:}
     timeout-seconds: ${AI_TIMEOUT:60}
     openai:
       api-key:          ${OPENAI_API_KEY:}
@@ -83,7 +85,6 @@ app:
 
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
-    token-info-url: ${GOOGLE_TOKEN_INFO_URL:https://oauth2.googleapis.com/tokeninfo}
 
   resend:
     api-key: ${RESEND_API_KEY:}

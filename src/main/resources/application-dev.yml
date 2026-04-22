@@ -16,7 +16,9 @@ app:
     type: local
 
   cors:
-    allowed-origins: "*"
+    allowed-origin-patterns:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
 
 logging:
   level:

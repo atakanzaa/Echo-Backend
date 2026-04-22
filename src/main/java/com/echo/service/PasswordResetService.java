@@ -106,6 +106,7 @@ public class PasswordResetService {
         token.setUsed(true);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setEmailVerified(true);
+        user.setTokenVersion(user.getTokenVersion() + 1);
 
         passwordResetTokenRepository.save(token);
         userRepository.save(user);

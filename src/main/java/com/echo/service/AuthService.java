@@ -97,6 +97,7 @@ public class AuthService {
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.setEmailVerified(true);
+        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
         refreshTokenRepository.deleteByUserId(user.getId());
 
@@ -163,7 +164,8 @@ public class AuthService {
     }
 
     private AuthResponse buildAuthResponse(User user) {
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtTokenProvider.generateAccessToken(
+                user.getId(), user.getEmail(), user.getTokenVersion());
         String rawRefresh = UUID.randomUUID().toString();
         String hashedRefresh = hashToken(rawRefresh);
 

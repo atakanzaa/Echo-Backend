@@ -6,10 +6,13 @@
     encode zstd gzip
 
     header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security  "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options     "nosniff"
+        X-Frame-Options            "DENY"
+        Referrer-Policy            "strict-origin-when-cross-origin"
+        # Pure JSON API — no scripts, images, or forms served from this origin.
+        Content-Security-Policy    "default-src 'none'; frame-ancestors 'none'"
+        Permissions-Policy         "camera=(), microphone=(), geolocation=(), payment=()"
         -Server
     }
 

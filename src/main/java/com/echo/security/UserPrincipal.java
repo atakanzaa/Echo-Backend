@@ -18,13 +18,16 @@ public class UserPrincipal implements UserDetails {
     private final String  password;
     private final boolean active;
     private final String  role;
+    private final int     tokenVersion;
 
-    private UserPrincipal(UUID id, String email, String password, boolean active, String role) {
-        this.id       = id;
-        this.email    = email;
-        this.password = password;
-        this.active   = active;
-        this.role     = role != null ? role : "USER";
+    private UserPrincipal(UUID id, String email, String password,
+                          boolean active, String role, int tokenVersion) {
+        this.id           = id;
+        this.email        = email;
+        this.password     = password;
+        this.active       = active;
+        this.role         = role != null ? role : "USER";
+        this.tokenVersion = tokenVersion;
     }
 
     public static UserPrincipal from(User user) {
@@ -33,7 +36,8 @@ public class UserPrincipal implements UserDetails {
                 user.getEmail(),
                 user.getPasswordHash(),
                 user.isActive(),
-                user.getRole()
+                user.getRole(),
+                user.getTokenVersion()
         );
     }
 

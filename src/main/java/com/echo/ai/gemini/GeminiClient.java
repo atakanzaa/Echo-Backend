@@ -33,11 +33,13 @@ public class GeminiClient {
      */
     public Map<?, ?> execute(RestTemplate restTemplate,
                              String url,
+                             String apiKey,
                              Map<String, Object> body,
                              String operation,
                              String promptVersion) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", apiKey);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         Exception lastException = null;
