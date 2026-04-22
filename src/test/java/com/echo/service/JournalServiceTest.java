@@ -1,9 +1,12 @@
 package com.echo.service;
 
+import com.echo.ai.AITranscriptionRequest;
 import com.echo.domain.journal.EntryStatus;
 import com.echo.domain.journal.JournalEntry;
+import com.echo.domain.subscription.FeatureKey;
 import com.echo.domain.user.User;
 import com.echo.dto.response.JournalEntryResponse;
+import com.echo.exception.QuotaExceededException;
 import com.echo.exception.ResourceNotFoundException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.JournalEntryRepository;
@@ -12,12 +15,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,11 +37,7 @@ class JournalServiceTest {
     @Mock JournalEntryRepository  journalEntryRepository;
     @Mock AnalysisResultRepository analysisResultRepository;
     @Mock UserRepository           userRepository;
-    @Mock com.echo.ai.AIProviderRouter router;
-    @Mock AchievementService       achievementService;
-    @Mock ApplicationEventPublisher eventPublisher;
-    @Mock AiJobDlqService          aiJobDlqService;
-    @Mock JournalEntryUpdater      entryUpdater;
+    @Mock JournalProcessingWorker  journalProcessingWorker;
     @Mock EntitlementService       entitlementService;
 
     @InjectMocks JournalService journalService;
@@ -112,5 +113,158 @@ class JournalServiceTest {
 
         // then
         assertThat(responses).hasSize(2);
+    }
+
+    @Test
+    void createEntry_dispatchesAudioProcessingWorker() {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder().id(userId).build();
+        byte[] audio = new byte[] {1, 2, 3, 4};
+        OffsetDateTime recordedAt = OffsetDateTime.now();
+
+        given(entitlementService.consumeQuota(userId, com.echo.domain.subscription.FeatureKey.JOURNAL_ENTRIES))
+                .willReturn(true);
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(journalEntryRepository.saveAndFlush(any(JournalEntry.class))).willAnswer(invocation -> {
+            JournalEntry entry = invocation.getArgument(0);
+            entry.setId(UUID.randomUUID());
+            return entry;
+        });
+
+        JournalEntryResponse response = journalService.createEntry(
+                userId,
+                audio,
+                "voice.m4a",
+                "audio/mp4",
+                recordedAt,
+                18,
+                null
+        );
+
+        ArgumentCaptor<AITranscriptionRequest> requestCaptor = ArgumentCaptor.forClass(AITranscriptionRequest.class);
+        then(journalProcessingWorker).should()
+                .processAudioEntryAsync(eq(response.id()), requestCaptor.capture(), eq(userId));
+        AITranscriptionRequest request = requestCaptor.getValue();
+        assertThat(request.filename()).isEqualTo("voice.m4a");
+        assertThat(request.contentType()).isEqualTo("audio/mp4");
+        assertThat(request.durationSeconds()).isEqualTo(18);
+        assertThat(Arrays.equals(request.audioBytes(), audio)).isTrue();
+    }
+
+    @Test
+    void createEntryFromTranscript_dispatchesTranscriptWorker() {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder().id(userId).build();
+        OffsetDateTime recordedAt = OffsetDateTime.now();
+
+        given(entitlementService.consumeQuota(userId, com.echo.domain.subscription.FeatureKey.JOURNAL_ENTRIES))
+                .willReturn(true);
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(journalEntryRepository.saveAndFlush(any(JournalEntry.class))).willAnswer(invocation -> {
+            JournalEntry entry = invocation.getArgument(0);
+            entry.setId(UUID.randomUUID());
+            return entry;
+        });
+
+        JournalEntryResponse response = journalService.createEntryFromTranscript(
+                userId,
+                "Bugun kendimi daha iyi hissediyorum.",
+                recordedAt,
+                12,
+                null
+        );
+
+        then(journalProcessingWorker).should()
+                .analyzeTranscriptAsync(eq(response.id()), eq("Bugun kendimi daha iyi hissediyorum."), eq(userId));
+    }
+
+    @Test
+    void createEntry_throwsWhenQuotaIsExceeded() {
+        UUID userId = UUID.randomUUID();
+        given(entitlementService.consumeQuota(userId, com.echo.domain.subscription.FeatureKey.JOURNAL_ENTRIES))
+                .willReturn(false);
+
+        assertThatThrownBy(() -> journalService.createEntry(
+                userId,
+                new byte[] {1},
+                "voice.m4a",
+                "audio/mp4",
+                OffsetDateTime.now(),
+                10,
+                null
+        )).isInstanceOf(QuotaExceededException.class);
+
+        then(journalProcessingWorker).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void createEntry_returnsExistingEntryForSameUserIdempotencyKey() {
+        UUID userId = UUID.randomUUID();
+        String key = "upload-123";
+        JournalEntry existing = buildEntry(userId);
+        given(journalEntryRepository.findByUserIdAndIdempotencyKey(userId, key))
+                .willReturn(Optional.of(existing));
+        given(analysisResultRepository.findByJournalEntryId(existing.getId())).willReturn(Optional.empty());
+
+        JournalEntryResponse response = journalService.createEntry(
+                userId,
+                new byte[] {1, 2, 3},
+                "voice.m4a",
+                "audio/mp4",
+                OffsetDateTime.now(),
+                10,
+                key
+        );
+
+        assertThat(response.id()).isEqualTo(existing.getId());
+        then(entitlementService).should(never()).consumeQuota(any(), any());
+        then(journalProcessingWorker).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void createEntry_duplicateKeyRaceRefundsQuotaAndReturnsUserScopedEntry() {
+        UUID userId = UUID.randomUUID();
+        String key = "race-key";
+        User user = User.builder().id(userId).build();
+        JournalEntry existing = buildEntry(userId);
+
+        given(journalEntryRepository.findByUserIdAndIdempotencyKey(userId, key))
+                .willReturn(Optional.empty(), Optional.of(existing));
+        given(entitlementService.consumeQuota(userId, FeatureKey.JOURNAL_ENTRIES)).willReturn(true);
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(journalEntryRepository.saveAndFlush(any(JournalEntry.class)))
+                .willThrow(new DataIntegrityViolationException("duplicate idempotency key"));
+        given(analysisResultRepository.findByJournalEntryId(existing.getId())).willReturn(Optional.empty());
+
+        JournalEntryResponse response = journalService.createEntry(
+                userId,
+                new byte[] {1, 2, 3},
+                "voice.m4a",
+                "audio/mp4",
+                OffsetDateTime.now(),
+                10,
+                key
+        );
+
+        assertThat(response.id()).isEqualTo(existing.getId());
+        then(entitlementService).should().refundQuota(userId, FeatureKey.JOURNAL_ENTRIES);
+        then(journalProcessingWorker).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void createEntry_rejectsInvalidIdempotencyKey() {
+        UUID userId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> journalService.createEntry(
+                userId,
+                new byte[] {1, 2, 3},
+                "voice.m4a",
+                "audio/mp4",
+                OffsetDateTime.now(),
+                10,
+                "bad key!"
+        )).isInstanceOf(IllegalArgumentException.class);
+
+        then(entitlementService).shouldHaveNoInteractions();
     }
 }

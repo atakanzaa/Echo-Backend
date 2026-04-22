@@ -54,7 +54,7 @@ class AuthServiceTest {
                 .timezone(request.timezone())
                 .build();
         given(userRepository.save(any(User.class))).willReturn(saved);
-        given(jwtTokenProvider.generateAccessToken(any(UUID.class), anyString())).willReturn("access-token");
+        given(jwtTokenProvider.generateAccessToken(any(UUID.class), anyString(), anyInt())).willReturn("access-token");
         given(refreshTokenRepository.save(any(RefreshToken.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -91,7 +91,7 @@ class AuthServiceTest {
                 .build();
         given(userRepository.findByEmail(request.email())).willReturn(Optional.of(user));
         given(passwordEncoder.matches(request.password(), "hashed")).willReturn(true);
-        given(jwtTokenProvider.generateAccessToken(eq(user.getId()), anyString())).willReturn("access-token");
+        given(jwtTokenProvider.generateAccessToken(eq(user.getId()), anyString(), anyInt())).willReturn("access-token");
         given(refreshTokenRepository.save(any(RefreshToken.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -138,7 +138,7 @@ class AuthServiceTest {
         given(passwordEncoder.matches("NewPassword123!", "hashed")).willReturn(false);
         given(passwordEncoder.encode("NewPassword123!")).willReturn("new-hashed");
         given(userRepository.save(any(User.class))).willReturn(user);
-        given(jwtTokenProvider.generateAccessToken(eq(user.getId()), anyString())).willReturn("access-token");
+        given(jwtTokenProvider.generateAccessToken(eq(user.getId()), anyString(), anyInt())).willReturn("access-token");
         given(refreshTokenRepository.save(any(RefreshToken.class))).willAnswer(inv -> inv.getArgument(0));
 
         AuthResponse response = authService.changePassword(
@@ -171,7 +171,7 @@ class AuthServiceTest {
 
         given(refreshTokenRepository.findByTokenHashForUpdate(stored.getTokenHash()))
                 .willReturn(Optional.of(stored));
-        given(jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail())).willReturn("access-token");
+        given(jwtTokenProvider.generateAccessToken(eq(user.getId()), anyString(), anyInt())).willReturn("access-token");
         given(refreshTokenRepository.save(any(RefreshToken.class))).willAnswer(inv -> inv.getArgument(0));
 
         AuthResponse response = authService.refresh("refresh-token");
