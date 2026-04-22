@@ -5,15 +5,16 @@ import com.echo.dto.response.JournalEntryResponse;
 import com.echo.dto.response.JournalStatusResponse;
 import com.echo.dto.response.OnThisDayResponse;
 import com.echo.security.UserPrincipal;
+import com.echo.service.JournalUploadValidator;
 import com.echo.service.JournalService;
 import com.echo.service.UserStatsService;
+import com.echo.util.PageableFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,9 +30,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JournalController {
 
-    private static final Logger log = LoggerFactory.getLogger(JournalController.class);
     private final JournalService journalService;
     private final UserStatsService userStatsService;
+    private final JournalUploadValidator journalUploadValidator;
+    private final PageableFactory pageableFactory;
 
     /**
      * Upload audio and start async pipeline.
@@ -47,15 +49,12 @@ public class JournalController {
             @AuthenticationPrincipal UserPrincipal principal) throws IOException {
 
         byte[] audioBytes = audio.getBytes();
-        log.info("Audio upload received: filename={} bytes={} durationSeconds={}",
-                audio.getOriginalFilename(), audioBytes.length, durationSeconds);
-        if (audioBytes.length == 0) {
-            return ResponseEntity.badRequest().build();
-        }
+        journalUploadValidator.validate(audioBytes, durationSeconds, audio.getContentType());
         JournalEntryResponse response = journalService.createEntry(
                 principal.getId(),
                 audioBytes,
                 audio.getOriginalFilename(),
+                audio.getContentType(),
                 OffsetDateTime.parse(recordedAt),
                 durationSeconds,
                 idempotencyKey
@@ -111,10 +110,13 @@ public class JournalController {
 
     @GetMapping("/recent")
     public ResponseEntity<List<JournalEntryResponse>> getRecent(
-            @RequestParam(defaultValue = "7") int limit,
+            @RequestParam(name = "limit", defaultValue = "7") int size,
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        return ResponseEntity.ok(journalService.getRecent(principal.getId(), Math.min(limit, 50)));
+        return ResponseEntity.ok(journalService.getRecent(
+                principal.getId(),
+                pageableFactory.firstPage(size, Sort.by("recordedAt").descending()).getPageSize()
+        ));
     }
 
     @GetMapping("/on-this-day")

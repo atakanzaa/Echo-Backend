@@ -17,7 +17,7 @@ public record TimeCapsuleResponse(
         boolean canOpen
 ) {
     public static TimeCapsuleResponse from(TimeCapsule capsule) {
-        boolean opened = "opened".equals(capsule.getStatus());
+        boolean opened = TimeCapsule.STATUS_OPENED.equals(capsule.getStatus());
         return new TimeCapsuleResponse(
                 capsule.getId(),
                 capsule.getTitle(),

@@ -7,9 +7,9 @@ import com.echo.dto.response.PagedResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.GoalIntegrationService;
 import com.echo.service.GoalService;
+import com.echo.util.PageableFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +26,7 @@ public class GoalController {
 
     private final GoalService goalService;
     private final GoalIntegrationService goalIntegrationService;
+    private final PageableFactory pageableFactory;
 
     /** Active goals (PENDING + ACTIVE) */
     @GetMapping
@@ -33,7 +34,7 @@ public class GoalController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal p) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = pageableFactory.create(page, size);
         return ResponseEntity.ok(goalService.getActiveGoals(p.getId(), pageable));
     }
 
@@ -43,7 +44,7 @@ public class GoalController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal p) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = pageableFactory.create(page, size);
         return ResponseEntity.ok(goalService.getAllGoals(p.getId(), pageable));
     }
 

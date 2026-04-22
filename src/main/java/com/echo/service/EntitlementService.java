@@ -83,8 +83,28 @@ public class EntitlementService {
         return true;
     }
 
+    @Transactional
+    public void refundQuota(UUID userId, FeatureKey feature) {
+        int limit = getLimit(userId, feature);
+        if (limit == -1) {
+            return;
+        }
+
+        LocalDate periodStart = currentPeriodStart();
+        usageCounterRepository.findForUpdate(userId, feature.name(), periodStart)
+                .ifPresent(counter -> {
+                    counter.setUsageCount(Math.max(0, counter.getUsageCount() - 1));
+                    usageCounterRepository.save(counter);
+                });
+    }
+
     @Transactional(readOnly = true)
     public boolean consumeSessionQuota(UUID userId, UUID sessionId, FeatureKey feature) {
+        return hasSessionQuota(userId, sessionId, feature);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasSessionQuota(UUID userId, UUID sessionId, FeatureKey feature) {
         int limit = getLimit(userId, feature);
         if (limit == -1) {
             return true;

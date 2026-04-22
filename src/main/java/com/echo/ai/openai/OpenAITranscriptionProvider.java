@@ -1,8 +1,11 @@
 package com.echo.ai.openai;
 
+import com.echo.ai.AITranscriptionRequest;
+import com.echo.ai.AITranscriptionResult;
 import com.echo.ai.AITranscriptionProvider;
 import com.echo.config.AppProperties;
 import com.echo.exception.ServiceUnavailableException;
+import com.echo.exception.TranscriptionFailedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,12 +35,16 @@ public class OpenAITranscriptionProvider implements AITranscriptionProvider {
 
     @Override
     @CircuitBreaker(name = "openai-transcription", fallbackMethod = "transcribeFallback")
-    public String transcribe(byte[] audioBytes, String filename) {
+    public AITranscriptionResult transcribe(AITranscriptionRequest request) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("file", new ByteArrayResource(audioBytes) {
+        HttpHeaders partHeaders = new HttpHeaders();
+        if (request.contentType() != null && !request.contentType().isBlank()) {
+            partHeaders.setContentType(MediaType.parseMediaType(request.contentType()));
+        }
+        body.add("file", new HttpEntity<>(new ByteArrayResource(request.audioBytes()) {
             @Override
-            public String getFilename() { return filename; }
-        });
+            public String getFilename() { return request.filename(); }
+        }, partHeaders));
         body.add("model", props.getAi().getOpenai().getTranscribeModel());
         body.add("response_format", "json");
 
@@ -50,11 +57,29 @@ public class OpenAITranscriptionProvider implements AITranscriptionProvider {
                 new HttpEntity<>(body, headers), Map.class
         );
 
-        log.debug("Whisper transcription tamamlandı: {} bytes", audioBytes.length);
-        return (String) response.getBody().get("text");
+        String transcript = response.getBody() == null ? null : (String) response.getBody().get("text");
+        if (transcript == null || transcript.isBlank()) {
+            throw new TranscriptionFailedException(
+                    "TRANSCRIPTION_EMPTY",
+                    "Ses kaydı çözümlenemedi. Lütfen daha net bir kayıtla tekrar dene."
+            );
+        }
+
+        log.debug("Whisper transcription tamamlandı: {} bytes", request.audioBytes().length);
+        return new AITranscriptionResult(
+                transcript.strip(),
+                "openai",
+                null,
+                null,
+                request.contentType(),
+                java.util.List.of()
+        );
     }
 
-    private String transcribeFallback(byte[] audioBytes, String filename, Throwable ex) {
+    private AITranscriptionResult transcribeFallback(AITranscriptionRequest request, Throwable ex) {
+        if (ex instanceof TranscriptionFailedException transcriptionFailedException) {
+            throw transcriptionFailedException;
+        }
         log.error("OpenAI transcription devre dışı (circuit open): {}", ex.getMessage());
         throw new ServiceUnavailableException(
                 "Ses tanıma servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);

@@ -16,6 +16,8 @@ import java.util.UUID;
 public interface CoachMessageRepository extends JpaRepository<CoachMessage, UUID> {
     List<CoachMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
 
+    List<CoachMessage> findBySessionIdOrderByCreatedAtDesc(UUID sessionId, Pageable pageable);
+
     Page<CoachMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId, Pageable pageable);
 
     // messages after a given date, used for synthesis coach context

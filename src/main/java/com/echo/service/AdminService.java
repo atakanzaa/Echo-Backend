@@ -14,6 +14,10 @@ public class AdminService {
         return router.activeProvider();
     }
 
+    public String getActiveTranscriptionProvider() {
+        return router.activeTranscriptionProvider();
+    }
+
     public void switchProvider(String provider) {
         router.switchProvider(provider);
     }

@@ -212,7 +212,7 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("Claude yanıtı parse edilemedi: " + json, e);
+            throw new RuntimeException("Claude analysis response could not be parsed", e);
         }
     }
 
@@ -255,7 +255,7 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
                     node.path("reason").asText("")
             );
         } catch (Exception e) {
-            throw new RuntimeException("Claude goal match response could not be parsed: " + json, e);
+            throw new RuntimeException("Claude goal match response could not be parsed", e);
         }
     }
 

@@ -19,7 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,6 +42,10 @@ public class AiJobDlqService {
     private final JournalEntryUpdater entryUpdater;
     private final AchievementService achievementService;
     private final ApplicationEventPublisher eventPublisher;
+    private final PlatformTransactionManager transactionManager;
+
+    private static final int MAX_RETRY_BATCH_SIZE = 25;
+    private static final int CLAIM_TTL_MINUTES = 10;
 
     @Transactional
     public void enqueue(UUID entryId, String jobType, String errorCode, String payload) {
@@ -59,9 +65,8 @@ public class AiJobDlqService {
     }
 
     @Scheduled(fixedDelay = 300_000L, initialDelay = 120_000L)
-    @Transactional
     public void retryPendingJobs() {
-        List<AiJobDlq> jobs = aiJobDlqRepository.findRetryableJobs(OffsetDateTime.now());
+        List<AiJobDlq> jobs = claimRetryableJobs();
         if (jobs.isEmpty()) {
             return;
         }
@@ -75,6 +80,17 @@ public class AiJobDlqService {
                 handleRetryFailure(job, e);
             }
         }
+    }
+
+    private List<AiJobDlq> claimRetryableJobs() {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        return tx.execute(status -> {
+            OffsetDateTime now = OffsetDateTime.now();
+            List<AiJobDlq> jobs = aiJobDlqRepository.findRetryableJobsForUpdate(now, MAX_RETRY_BATCH_SIZE);
+            OffsetDateTime claimUntil = now.plusMinutes(CLAIM_TTL_MINUTES);
+            jobs.forEach(job -> job.setNextRetryAt(claimUntil));
+            return aiJobDlqRepository.saveAll(jobs);
+        });
     }
 
     @Transactional

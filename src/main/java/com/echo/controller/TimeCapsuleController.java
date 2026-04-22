@@ -5,9 +5,9 @@ import com.echo.dto.response.PagedResponse;
 import com.echo.dto.response.TimeCapsuleResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.TimeCapsuleService;
+import com.echo.util.PageableFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,13 +21,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TimeCapsuleController {
     private final TimeCapsuleService timeCapsuleService;
+    private final PageableFactory pageableFactory;
 
     @GetMapping
     public ResponseEntity<PagedResponse<TimeCapsuleResponse>> getCapsules(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal p) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = pageableFactory.create(page, size);
         return ResponseEntity.ok(timeCapsuleService.getCapsules(p.getId(), pageable));
     }
 

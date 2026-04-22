@@ -217,7 +217,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("OpenAI synthesis yanıtı parse edilemedi: " + raw, e);
+            throw new RuntimeException("OpenAI synthesis response could not be parsed", e);
         }
     }
 

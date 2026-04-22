@@ -39,7 +39,7 @@ public class TimeCapsuleService {
     @Transactional
     public TimeCapsuleResponse createCapsule(UUID userId, CreateCapsuleRequest request) {
         int limit = entitlementService.getLimit(userId, FeatureKey.ACTIVE_TIME_CAPSULES);
-        int activeCapsules = timeCapsuleRepository.countByUserIdAndStatus(userId, "sealed");
+        int activeCapsules = timeCapsuleRepository.countByUserIdAndStatus(userId, TimeCapsule.STATUS_SEALED);
         if (limit != -1 && activeCapsules >= limit) {
             throw new QuotaExceededException(
                     "CAPSULE_LIMIT",
@@ -49,14 +49,21 @@ public class TimeCapsuleService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        OffsetDateTime unlockAt = OffsetDateTime.parse(request.unlockAt());
+        if (!unlockAt.isAfter(OffsetDateTime.now())) {
+            throw new IllegalArgumentException("Unlock date must be in the future");
+        }
+        if (!TimeCapsule.CONTENT_TYPE_TEXT.equals(request.contentType())) {
+            throw new IllegalArgumentException("Unsupported capsule content type");
+        }
         TimeCapsule capsule = TimeCapsule.builder()
                 .user(user)
                 .title(request.title())
                 .contentText(request.contentText())
-                .contentType(request.contentType())
+                .contentType(TimeCapsule.CONTENT_TYPE_TEXT)
                 .sealedAt(OffsetDateTime.now())
-                .unlockAt(OffsetDateTime.parse(request.unlockAt()))
-                .status("sealed")
+                .unlockAt(unlockAt)
+                .status(TimeCapsule.STATUS_SEALED)
                 .build();
         return TimeCapsuleResponse.from(timeCapsuleRepository.save(capsule));
     }
@@ -69,8 +76,8 @@ public class TimeCapsuleService {
             throw new CapsuleStillLockedException(
                     "This capsule is locked until " + capsule.getUnlockAt());
         }
-        if (!"opened".equals(capsule.getStatus())) {
-            capsule.setStatus("opened");
+        if (!TimeCapsule.STATUS_OPENED.equals(capsule.getStatus())) {
+            capsule.setStatus(TimeCapsule.STATUS_OPENED);
             capsule.setOpenedAt(OffsetDateTime.now());
             timeCapsuleRepository.save(capsule);
         }
@@ -81,7 +88,7 @@ public class TimeCapsuleService {
     public void deleteCapsule(UUID capsuleId, UUID userId) {
         TimeCapsule capsule = timeCapsuleRepository.findByIdAndUserId(capsuleId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Capsule not found"));
-        if (!"sealed".equals(capsule.getStatus())) {
+        if (!TimeCapsule.STATUS_SEALED.equals(capsule.getStatus())) {
             throw new IllegalArgumentException("Only sealed capsules can be deleted");
         }
         timeCapsuleRepository.delete(capsule);

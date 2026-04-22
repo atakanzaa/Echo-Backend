@@ -9,11 +9,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface PostCommentRepository extends JpaRepository<PostComment, UUID> {
     Page<PostComment> findByPostIdOrderByCreatedAtAsc(UUID postId, Pageable pageable);
     Page<PostComment> findByPostIdAndParentIsNullOrderByCreatedAtAsc(UUID postId, Pageable pageable);
+    Optional<PostComment> findByIdAndPostId(UUID id, UUID postId);
     List<PostComment> findByParentIdOrderByCreatedAtAsc(UUID parentId);
     List<PostComment> findByParentIdInOrderByCreatedAtAsc(List<UUID> parentIds);
     long countByParentId(UUID parentId);

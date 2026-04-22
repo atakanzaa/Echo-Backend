@@ -36,7 +36,7 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     boolean existsByUserIdAndEntryDate(UUID userId, LocalDate date);
 
-    Optional<JournalEntry> findByIdempotencyKey(String idempotencyKey);
+    Optional<JournalEntry> findByUserIdAndIdempotencyKey(UUID userId, String idempotencyKey);
 
     @Query(value = """
            SELECT * FROM journal_entries je

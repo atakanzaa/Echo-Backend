@@ -2,6 +2,7 @@ package com.echo.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
@@ -21,5 +22,7 @@ public record CreateJournalFromTranscriptRequest(
         @Positive(message = "Duration must be positive")
         int durationSeconds,
 
-        String idempotencyKey       // UUID — duplicate submission guard (optional but recommended)
+        @Size(max = 64, message = "Idempotency key must be 64 characters or fewer")
+        @Pattern(regexp = "^[A-Za-z0-9._:-]*$", message = "Idempotency key contains unsupported characters")
+        String idempotencyKey
 ) {}

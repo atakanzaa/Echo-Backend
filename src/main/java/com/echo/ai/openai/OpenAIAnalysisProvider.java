@@ -212,7 +212,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("OpenAI yanıtı parse edilemedi: " + json, e);
+            throw new RuntimeException("OpenAI analysis response could not be parsed", e);
         }
     }
 
@@ -255,7 +255,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
                     node.path("reason").asText("")
             );
         } catch (Exception e) {
-            throw new RuntimeException("OpenAI goal match response could not be parsed: " + json, e);
+            throw new RuntimeException("OpenAI goal match response could not be parsed", e);
         }
     }
 

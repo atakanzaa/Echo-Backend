@@ -7,9 +7,9 @@ import com.echo.dto.response.CoachSessionResponse;
 import com.echo.dto.response.PagedResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.CoachService;
+import com.echo.util.PageableFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,13 +24,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CoachController {
     private final CoachService coachService;
+    private final PageableFactory pageableFactory;
 
     @GetMapping("/sessions")
     public ResponseEntity<PagedResponse<CoachSessionResponse>> getSessions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal p) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = pageableFactory.create(page, size);
         return ResponseEntity.ok(coachService.getSessions(p.getId(), pageable));
     }
 
@@ -49,7 +50,7 @@ public class CoachController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @AuthenticationPrincipal UserPrincipal p) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = pageableFactory.create(page, size);
         return ResponseEntity.ok(coachService.getMessages(sessionId, p.getId(), pageable));
     }
 

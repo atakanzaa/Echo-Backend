@@ -12,12 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-/**
- * Prodüksiyon critical bug: Sunucu restart olduğunda async pipeline'daki entry'ler
- * UPLOADING / TRANSCRIBING / ANALYZING durumunda sonsuza dek takılı kalır.
- * Bu servis her 5 dakikada çalışır ve 20 dakikadan fazla süredir bu durumlarda
- * bulunan entry'leri FAILED olarak işaretler.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,9 +36,10 @@ public class JournalMaintenanceService {
             log.warn("Takılı entry recover: id={}, status={}, createdAt={}",
                     entry.getId(), entry.getStatus(), entry.getCreatedAt());
 
+            EntryStatus previousStatus = entry.getStatus();
             entry.setStatus(EntryStatus.FAILED);
             entry.setErrorMessage(
-                    "İşlem zaman aşımına uğradı (durum: " + entry.getStatus().name() +
+                    "İşlem zaman aşımına uğradı (durum: " + previousStatus.name() +
                     "). Lütfen kaydı tekrar yükleyin."
             );
             journalEntryRepository.save(entry);

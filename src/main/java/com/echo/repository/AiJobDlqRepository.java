@@ -20,4 +20,17 @@ public interface AiJobDlqRepository extends JpaRepository<AiJobDlq, UUID> {
            ORDER BY j.nextRetryAt ASC
            """)
     List<AiJobDlq> findRetryableJobs(@Param("now") OffsetDateTime now);
+
+    @Query(value = """
+           SELECT *
+           FROM ai_job_dlq
+           WHERE resolved_at IS NULL
+             AND next_retry_at <= :now
+             AND attempt_count < 5
+           ORDER BY next_retry_at ASC
+           LIMIT :limit
+           FOR UPDATE SKIP LOCKED
+           """, nativeQuery = true)
+    List<AiJobDlq> findRetryableJobsForUpdate(@Param("now") OffsetDateTime now,
+                                              @Param("limit") int limit);
 }

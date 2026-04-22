@@ -7,6 +7,7 @@ import com.echo.dto.response.PagedResponse;
 import com.echo.dto.response.PostCommentResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.CommunityService;
+import com.echo.util.PageableFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ import java.util.UUID;
 public class CommunityController {
 
     private final CommunityService communityService;
+    private final PageableFactory pageableFactory;
 
     // ── Feed ──────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,9 @@ public class CommunityController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(communityService.getFeed(principal.getId(), tab, page, Math.min(size, 50)));
+        var pageable = pageableFactory.create(page, size);
+        return ResponseEntity.ok(communityService.getFeed(
+                principal.getId(), tab, pageable.getPageNumber(), pageable.getPageSize()));
     }
 
     // ── Single Post ───────────────────────────────────────────────────────────
@@ -103,7 +107,9 @@ public class CommunityController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(communityService.getComments(postId, principal.getId(), page, size));
+        var pageable = pageableFactory.create(page, size);
+        return ResponseEntity.ok(communityService.getComments(
+                postId, principal.getId(), pageable.getPageNumber(), pageable.getPageSize()));
     }
 
     @PostMapping("/posts/{postId}/comments")

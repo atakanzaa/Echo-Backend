@@ -4,10 +4,10 @@ import com.echo.dto.response.NotificationResponse;
 import com.echo.dto.response.PagedResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.NotificationService;
+import com.echo.util.PageableFactory;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,17 +22,17 @@ import java.util.UUID;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final PageableFactory pageableFactory;
 
     @GetMapping
     public ResponseEntity<PagedResponse<NotificationResponse>> getNotifications(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal principal) {
-        int boundedSize = Math.min(Math.max(size, 1), 50);
         return ResponseEntity.ok(
                 notificationService.getNotifications(
                         principal.getId(),
-                        PageRequest.of(Math.max(page, 0), boundedSize)
+                        pageableFactory.create(page, size)
                 )
         );
     }

@@ -15,6 +15,7 @@ import com.echo.exception.UnauthorizedException;
 import com.echo.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -53,7 +54,12 @@ public class CommunityService {
                 ? getFollowingFeed(userId, pageable)
                 : communityPostRepository.findByPublicPostTrueOrderByCreatedAtDesc(pageable);
 
-        Set<UUID> likedPostIds = postLikeRepository.findLikedPostIdsByUserId(userId);
+        Set<UUID> pagePostIds = posts.getContent().stream()
+                .map(CommunityPost::getId)
+                .collect(Collectors.toSet());
+        Set<UUID> likedPostIds = pagePostIds.isEmpty()
+                ? Set.of()
+                : postLikeRepository.findLikedPostIdsByUserIdAndPostIds(userId, pagePostIds);
 
         return PagedResponse.from(posts, p -> CommunityPostResponse.from(p, likedPostIds.contains(p.getId())));
     }
@@ -145,7 +151,12 @@ public class CommunityService {
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        postLikeRepository.save(PostLike.builder().post(post).user(user).build());
+        try {
+            postLikeRepository.saveAndFlush(PostLike.builder().post(post).user(user).build());
+        } catch (DataIntegrityViolationException ex) {
+            log.debug("Duplicate post like ignored: postId={} userId={}", postId, userId);
+            return;
+        }
         communityPostRepository.incrementLikesCount(postId);
         eventPublisher.publishEvent(new PostLikedEvent(userId, post.getUser().getId(), postId));
     }
@@ -231,10 +242,9 @@ public class CommunityService {
 
     @Transactional
     public void deleteComment(UUID postId, UUID commentId, UUID userId) {
-        PostComment comment = postCommentRepository.findById(commentId)
+        PostComment comment = postCommentRepository.findByIdAndPostId(commentId, postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Yorum bulunamadı"));
-        CommunityPost post = communityPostRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
+        CommunityPost post = comment.getPost();
 
         boolean isCommentOwner = comment.getUser().getId().equals(userId);
         boolean isPostOwner = post.getUser().getId().equals(userId);
@@ -255,7 +265,12 @@ public class CommunityService {
                 .orElseThrow(() -> new ResourceNotFoundException("Yorum bulunamadı"));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        commentLikeRepository.save(CommentLike.builder().comment(comment).user(user).build());
+        try {
+            commentLikeRepository.saveAndFlush(CommentLike.builder().comment(comment).user(user).build());
+        } catch (DataIntegrityViolationException ex) {
+            log.debug("Duplicate comment like ignored: commentId={} userId={}", commentId, userId);
+            return;
+        }
         postCommentRepository.incrementLikesCount(commentId);
     }
 
@@ -278,7 +293,11 @@ public class CommunityService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         User following = userRepository.findById(followingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Takip edilecek kullanıcı bulunamadı"));
-        followRepository.save(Follow.builder().follower(follower).following(following).build());
+        try {
+            followRepository.saveAndFlush(Follow.builder().follower(follower).following(following).build());
+        } catch (DataIntegrityViolationException ex) {
+            log.debug("Duplicate follow ignored: followerId={} followingId={}", followerId, followingId);
+        }
     }
 
     @Transactional

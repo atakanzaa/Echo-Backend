@@ -50,8 +50,7 @@ public class JournalEntry {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
-    // Client-generated UUID — prevents duplicate submissions on retry / bad network
-    @Column(name = "idempotency_key", unique = true, length = 64)
+    @Column(name = "idempotency_key", length = 64)
     private String idempotencyKey;
 
     @CreationTimestamp

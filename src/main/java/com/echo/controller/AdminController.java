@@ -20,7 +20,10 @@ public class AdminController {
 
     @GetMapping("/ai-config")
     public ResponseEntity<Map<String, String>> getAIConfig() {
-        return ResponseEntity.ok(Map.of("provider", adminService.getActiveProvider()));
+        return ResponseEntity.ok(Map.of(
+                "provider", adminService.getActiveProvider(),
+                "transcriptionProvider", adminService.getActiveTranscriptionProvider()
+        ));
     }
 
     @PostMapping("/ai-config")
