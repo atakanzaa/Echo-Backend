@@ -115,12 +115,7 @@ management:
     health:
       show-details: when-authorized
   tracing:
-    sampling:
-      probability: ${OTEL_TRACE_SAMPLE_RATE:0.1}
-  otlp:
-    tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:}
-      timeout: 10s
+    enabled: false   # prod profile re-enables when OTEL_EXPORTER_OTLP_ENDPOINT is set
 
 resilience4j:
   circuitbreaker:

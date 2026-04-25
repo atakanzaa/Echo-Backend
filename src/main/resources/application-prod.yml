@@ -56,6 +56,17 @@ management:
       enabled: true
     readinessstate:
       enabled: true
+  # Tracing only activates in prod when OTEL_EXPORTER_OTLP_ENDPOINT is set.
+  # Leave OTEL_TRACING_ENABLED unset (or false) to skip OTel autoconfig entirely
+  # — useful when no collector is reachable yet.
+  tracing:
+    enabled: ${OTEL_TRACING_ENABLED:false}
+    sampling:
+      probability: ${OTEL_TRACE_SAMPLE_RATE:0.1}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      timeout: 10s
 
 logging:
   level:
