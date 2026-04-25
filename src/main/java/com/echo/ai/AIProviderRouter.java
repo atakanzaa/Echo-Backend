@@ -1,16 +1,5 @@
 package com.echo.ai;
 
-import com.echo.ai.claude.ClaudeAnalysisProvider;
-import com.echo.ai.claude.ClaudeCoachProvider;
-import com.echo.ai.claude.ClaudeTranscriptionProvider;
-import com.echo.ai.gemini.GeminiAnalysisProvider;
-import com.echo.ai.gemini.GeminiCoachProvider;
-import com.echo.ai.gemini.GeminiSynthesisProvider;
-import com.echo.ai.gemini.GeminiTranscriptionProvider;
-import com.echo.ai.openai.OpenAIAnalysisProvider;
-import com.echo.ai.openai.OpenAICoachProvider;
-import com.echo.ai.openai.OpenAISynthesisProvider;
-import com.echo.ai.openai.OpenAITranscriptionProvider;
 import com.echo.config.AppProperties;
 import com.echo.exception.ServiceUnavailableException;
 import com.echo.exception.TranscriptionFailedException;
@@ -19,13 +8,19 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Runtime'da restart olmadan AI provider değiştirmeyi sağlar.
  * Analysis / coach / synthesis için global provider kullanılır;
  * transcription gerekirse bağımsız provider ve fallback ile override edilebilir.
+ *
+ * Provider beans are auto-discovered via Spring DI lists. To add a new provider,
+ * implement the relevant interface(s) and register the bean — no router changes needed.
  */
 @Slf4j
 @Component
@@ -43,44 +38,22 @@ public class AIProviderRouter {
     private volatile String activeProvider;
     private volatile String activeTranscriptionProvider;
 
-    // All concrete provider beans — held for resolve() and fallback wiring
-    private final OpenAITranscriptionProvider openAITranscription;
-    private final OpenAIAnalysisProvider openAIAnalysis;
-    private final OpenAICoachProvider openAICoach;
-    private final OpenAISynthesisProvider openAISynthesis;
-    private final GeminiTranscriptionProvider geminiTranscription;
-    private final GeminiAnalysisProvider geminiAnalysis;
-    private final GeminiCoachProvider geminiCoach;
-    private final GeminiSynthesisProvider geminiSynthesis;
-    private final ClaudeTranscriptionProvider claudeTranscription;
-    private final ClaudeAnalysisProvider claudeAnalysis;
-    private final ClaudeCoachProvider claudeCoach;
+    private final Map<String, AITranscriptionProvider> transcriptionProviders;
+    private final Map<String, AIAnalysisProvider> analysisProviders;
+    private final Map<String, AICoachProvider> coachProviders;
+    private final Map<String, AISynthesisProvider> synthesisProviders;
 
     public AIProviderRouter(AppProperties props,
-                            OpenAITranscriptionProvider openAITranscription,
-                            OpenAIAnalysisProvider openAIAnalysis,
-                            OpenAICoachProvider openAICoach,
-                            OpenAISynthesisProvider openAISynthesis,
-                            GeminiTranscriptionProvider geminiTranscription,
-                            GeminiAnalysisProvider geminiAnalysis,
-                            GeminiCoachProvider geminiCoach,
-                            GeminiSynthesisProvider geminiSynthesis,
-                            ClaudeTranscriptionProvider claudeTranscription,
-                            ClaudeAnalysisProvider claudeAnalysis,
-                            ClaudeCoachProvider claudeCoach) {
+                            java.util.List<AITranscriptionProvider> transcriptionProviders,
+                            java.util.List<AIAnalysisProvider> analysisProviders,
+                            java.util.List<AICoachProvider> coachProviders,
+                            java.util.List<AISynthesisProvider> synthesisProviders) {
 
         this.props = props;
-        this.openAITranscription = openAITranscription;
-        this.openAIAnalysis = openAIAnalysis;
-        this.openAICoach = openAICoach;
-        this.openAISynthesis = openAISynthesis;
-        this.geminiTranscription = geminiTranscription;
-        this.geminiAnalysis = geminiAnalysis;
-        this.geminiCoach = geminiCoach;
-        this.geminiSynthesis = geminiSynthesis;
-        this.claudeTranscription = claudeTranscription;
-        this.claudeAnalysis = claudeAnalysis;
-        this.claudeCoach = claudeCoach;
+        this.transcriptionProviders = indexByVendor(transcriptionProviders);
+        this.analysisProviders = indexByVendor(analysisProviders);
+        this.coachProviders = indexByVendor(coachProviders);
+        this.synthesisProviders = indexByVendor(synthesisProviders);
 
         applyConfiguration(normalizeProvider(props.getAi().getProvider()));
     }
@@ -115,35 +88,49 @@ public class AIProviderRouter {
     }
 
     private AITranscriptionProvider resolveTranscription(String provider, String fallbackProvider) {
-        AITranscriptionProvider primary = transcriptionProviderBean(provider);
+        AITranscriptionProvider primary = required(transcriptionProviders, provider, "transcription");
         if (fallbackProvider == null) {
             return primary;
         }
-        return wrappedTranscription(primary, transcriptionProviderBean(fallbackProvider), provider, fallbackProvider);
+        return wrappedTranscription(primary,
+                required(transcriptionProviders, fallbackProvider, "transcription"),
+                provider, fallbackProvider);
     }
 
     private AIAnalysisProvider resolveAnalysis(String provider, String fallbackProvider) {
-        AIAnalysisProvider primary = analysisProviderBean(provider);
+        AIAnalysisProvider primary = required(analysisProviders, provider, "analysis");
         if (fallbackProvider == null) {
             return primary;
         }
-        return wrappedAnalysis(primary, analysisProviderBean(fallbackProvider), provider, fallbackProvider);
+        return wrappedAnalysis(primary,
+                required(analysisProviders, fallbackProvider, "analysis"),
+                provider, fallbackProvider);
     }
 
     private AICoachProvider resolveCoach(String provider, String fallbackProvider) {
-        AICoachProvider primary = coachProviderBean(provider);
+        AICoachProvider primary = required(coachProviders, provider, "coach");
         if (fallbackProvider == null) {
             return primary;
         }
-        return wrappedCoach(primary, coachProviderBean(fallbackProvider), provider, fallbackProvider);
+        return wrappedCoach(primary,
+                required(coachProviders, fallbackProvider, "coach"),
+                provider, fallbackProvider);
     }
 
     private AISynthesisProvider resolveSynthesis(String provider, String fallbackProvider) {
-        AISynthesisProvider primary = synthesisProviderBean(provider);
+        AISynthesisProvider primary = synthesisProviders.getOrDefault(provider, unsupportedSynthesis(provider));
         if (fallbackProvider == null) {
             return primary;
         }
-        return wrappedSynthesis(primary, synthesisProviderBean(fallbackProvider), provider, fallbackProvider);
+        AISynthesisProvider fallback = synthesisProviders.getOrDefault(fallbackProvider, unsupportedSynthesis(fallbackProvider));
+        return wrappedSynthesis(primary, fallback, provider, fallbackProvider);
+    }
+
+    private AISynthesisProvider unsupportedSynthesis(String provider) {
+        return req -> {
+            throw new UnsupportedOperationException(
+                    "Synthesis not supported for " + provider + ". Use openai or gemini.");
+        };
     }
 
     private String resolveConfiguredTranscriptionProvider(String provider) {
@@ -182,43 +169,44 @@ public class AIProviderRouter {
         return normalized;
     }
 
-    private AITranscriptionProvider transcriptionProviderBean(String provider) {
-        return switch (provider) {
-            case "openai" -> openAITranscription;
-            case "gemini" -> geminiTranscription;
-            case "claude" -> claudeTranscription;
-            default -> throw new IllegalArgumentException("Unknown provider: " + provider);
-        };
+    private static <T> Map<String, T> indexByVendor(java.util.List<T> beans) {
+        return beans.stream().collect(Collectors.toUnmodifiableMap(
+                AIProviderRouter::vendorKey,
+                Function.identity(),
+                (a, b) -> {
+                    throw new IllegalStateException(
+                            "Duplicate AI provider beans for vendor: " + vendorKey(a));
+                }
+        ));
     }
 
-    private AIAnalysisProvider analysisProviderBean(String provider) {
-        return switch (provider) {
-            case "openai" -> openAIAnalysis;
-            case "gemini" -> geminiAnalysis;
-            case "claude" -> claudeAnalysis;
-            default -> throw new IllegalArgumentException("Unknown provider: " + provider);
-        };
+    /**
+     * Maps a provider bean to its vendor key by inspecting the simple class name prefix.
+     * e.g. {@code OpenAITranscriptionProvider} → {@code openai}.
+     */
+    private static String vendorKey(Object bean) {
+        Class<?> c = bean.getClass();
+        while (c != null && c != Object.class) {
+            String simple = c.getSimpleName().toLowerCase(Locale.ROOT);
+            for (String vendor : VALID_PROVIDERS) {
+                if (simple.startsWith(vendor)) {
+                    return vendor;
+                }
+            }
+            c = c.getSuperclass();
+        }
+        throw new IllegalStateException(
+                "AI provider bean " + bean.getClass().getName()
+                        + " does not start with a known vendor prefix (openai|gemini|claude)");
     }
 
-    private AICoachProvider coachProviderBean(String provider) {
-        return switch (provider) {
-            case "openai" -> openAICoach;
-            case "gemini" -> geminiCoach;
-            case "claude" -> claudeCoach;
-            default -> throw new IllegalArgumentException("Unknown provider: " + provider);
-        };
-    }
-
-    private AISynthesisProvider synthesisProviderBean(String provider) {
-        return switch (provider) {
-            case "openai" -> openAISynthesis;
-            case "gemini" -> geminiSynthesis;
-            case "claude" -> req -> {
-                throw new UnsupportedOperationException(
-                        "Synthesis not supported for claude. Use openai or gemini.");
-            };
-            default -> throw new IllegalArgumentException("Unknown provider: " + provider);
-        };
+    private static <T> T required(Map<String, T> registry, String vendor, String role) {
+        T bean = registry.get(vendor);
+        if (bean == null) {
+            throw new IllegalStateException(
+                    "No " + role + " provider bean registered for vendor: " + vendor);
+        }
+        return bean;
     }
 
     private AICoachProvider wrappedCoach(AICoachProvider primary,

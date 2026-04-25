@@ -21,6 +21,7 @@ import com.echo.repository.GoalRepository;
 import com.echo.repository.GoalSuggestionRepository;
 import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserRepository;
+import com.echo.service.goal.GoalDetectionConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,42 +63,19 @@ public class GoalIntegrationService {
     private static final List<GoalStatus> OPEN_GOAL_STATUSES = GoalStatus.openStatuses();
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\b\\d+(?:[.,]\\d+)?\\b");
-    private static final Set<String> STOP_WORDS = Set.of(
-            "ve", "ile", "icin", "için", "bir", "bu", "su", "şu", "o", "da", "de", "the", "a", "an",
-            "to", "for", "of", "my", "me", "ben", "bunu", "onu", "hedef", "goal"
-    );
-    private static final Set<String> ACTION_KEYWORDS = Set.of(
-            "kos", "koş", "spor", "basla", "başla", "git", "bitir", "coz", "çöz", "rapor", "yaz",
-            "teslim", "calis", "çalış", "oku", "ara", "toparla", "tamamla", "run", "exercise", "start",
-            "finish", "fix", "ship", "submit", "write", "study", "call"
-    );
-    private static final List<String> FUTURE_INTENT_MARKERS = List.of(
-            "yarin", "yarın", "haftaya", "aksam", "akşam", "bugun", "bugün", "dusunuyorum", "düşünüyorum",
-            "yapacagim", "yapacağım", "edecegim", "edeceğim", "planliyorum", "planlıyorum", "baslayacagim",
-            "başlayacağım", "need to", "going to", "will", "plan to", "tomorrow", "next week"
-    );
-    private static final List<String> WISH_ONLY_MARKERS = List.of(
-            "keske", "keşke", "umarim", "umarım", "isterdim", "wish", "hopefully", "maybe someday"
-    );
-    private static final List<String> VAGUE_MARKERS = List.of(
-            "bir gun", "bir gün", "hayatimi toparlayacagim", "hayatımı toparlayacağım", "daha iyi olacagim",
-            "daha iyi olacağım", "fit olacagim", "fit olacağım", "better person", "get my life together"
-    );
-    private static final List<String> COMPLETION_MARKERS = List.of(
-            "yaptim", "yaptım", "bitirdim", "cozdum", "çözdüm", "tamamladim", "tamamladım", "kostum", "koştum",
-            "gittim", "hallettim", "bitti", "tamam", "finished", "fixed", "completed", "done", "shipped", "ran"
-    );
-    private static final List<String> NEGATION_MARKERS = List.of(
-            "yapamadim", "yapamadım", "cozemedim", "çözemedim", "bitiremedim", "tamamlayamadim", "tamamlayamadım",
-            "baslamadim", "başlamadım", "henüz değil", "henüz degil", "not yet", "didnt", "didn't", "couldnt",
-            "couldn't", "yarin yapacagim", "yarın yapacağım", "deneyecegim", "deneyeceğim", "try tomorrow"
-    );
+    private static final Set<String> STOP_WORDS = GoalDetectionConstants.STOP_WORDS;
+    private static final Set<String> ACTION_KEYWORDS = GoalDetectionConstants.ACTION_KEYWORDS;
+    private static final List<String> FUTURE_INTENT_MARKERS = GoalDetectionConstants.FUTURE_INTENT_MARKERS;
+    private static final List<String> WISH_ONLY_MARKERS = GoalDetectionConstants.WISH_ONLY_MARKERS;
+    private static final List<String> VAGUE_MARKERS = GoalDetectionConstants.VAGUE_MARKERS;
+    private static final List<String> COMPLETION_MARKERS = GoalDetectionConstants.COMPLETION_MARKERS;
+    private static final List<String> NEGATION_MARKERS = GoalDetectionConstants.NEGATION_MARKERS;
 
-    private static final double DETERMINISTIC_AUTO_THRESHOLD = 0.85;
-    private static final double SECONDARY_CANDIDATE_MAX = 0.55;
-    private static final double AI_CONFIRM_MIN = 0.60;
-    private static final double AI_AUTO_MIN = 0.90;
-    private static final int MAX_SUGGESTIONS_PER_JOURNAL = 2;
+    private static final double DETERMINISTIC_AUTO_THRESHOLD = GoalDetectionConstants.DETERMINISTIC_AUTO_THRESHOLD;
+    private static final double SECONDARY_CANDIDATE_MAX = GoalDetectionConstants.SECONDARY_CANDIDATE_MAX;
+    private static final double AI_CONFIRM_MIN = GoalDetectionConstants.AI_CONFIRM_MIN;
+    private static final double AI_AUTO_MIN = GoalDetectionConstants.AI_AUTO_MIN;
+    private static final int MAX_SUGGESTIONS_PER_JOURNAL = GoalDetectionConstants.MAX_SUGGESTIONS_PER_JOURNAL;
 
     private final GoalRepository goalRepository;
     private final GoalSuggestionRepository goalSuggestionRepository;

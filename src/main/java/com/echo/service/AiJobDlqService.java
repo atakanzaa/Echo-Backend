@@ -3,6 +3,7 @@ package com.echo.service;
 import com.echo.ai.AIAnalysisRequest;
 import com.echo.ai.AIAnalysisResponse;
 import com.echo.ai.AIProviderRouter;
+import com.echo.config.AppProperties;
 import com.echo.domain.journal.AiJobDlq;
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.journal.EntryStatus;
@@ -43,6 +44,7 @@ public class AiJobDlqService {
     private final AchievementService achievementService;
     private final ApplicationEventPublisher eventPublisher;
     private final PlatformTransactionManager transactionManager;
+    private final AppProperties appProperties;
 
     private static final int MAX_RETRY_BATCH_SIZE = 25;
     private static final int CLAIM_TTL_MINUTES = 10;
@@ -59,9 +61,16 @@ public class AiJobDlqService {
                 .attemptCount(1)
                 .firstFailedAt(now)
                 .lastFailedAt(now)
-                .nextRetryAt(now.plusMinutes(5))
+                .nextRetryAt(now.plusMinutes(backoffMinutes(1)))
                 .build();
         aiJobDlqRepository.save(dlq);
+    }
+
+    private long backoffMinutes(int attempt) {
+        AppProperties.Dlq cfg = appProperties.getDlq();
+        long shift = Math.min(attempt, 20); // guard against overflow
+        long delay = cfg.getBaseBackoffMinutes() * (1L << shift);
+        return Math.min(delay, cfg.getMaxBackoffMinutes());
     }
 
     @Scheduled(fixedDelay = 300_000L, initialDelay = 120_000L)
@@ -181,13 +190,13 @@ public class AiJobDlqService {
         job.setErrorCode(classifyError(e));
         job.setErrorMessage(e.getMessage());
 
-        if (nextAttempt >= 5) {
+        if (nextAttempt >= appProperties.getDlq().getMaxAttempts()) {
             job.setResolvedAt(OffsetDateTime.now());
             job.setResolution("ABANDONED");
             log.error("DLQ job abandoned after max retries: jobId={} entryId={}",
                     job.getId(), job.getJournalEntryId(), e);
         } else {
-            long minutes = 5L * (1L << nextAttempt);
+            long minutes = backoffMinutes(nextAttempt);
             job.setNextRetryAt(OffsetDateTime.now().plusMinutes(minutes));
             log.warn("DLQ retry failed: jobId={} attempt={} nextRetryAt={}",
                     job.getId(), nextAttempt, job.getNextRetryAt(), e);

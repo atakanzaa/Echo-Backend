@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -70,6 +71,7 @@ public class GoalController {
     }
 
     @PostMapping("/suggestions/{id}/accept")
+    @PreAuthorize("@authz.canAccessGoalSuggestion(#id)")
     public ResponseEntity<GoalResponse> acceptSuggestion(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal p) {
@@ -77,6 +79,7 @@ public class GoalController {
     }
 
     @PostMapping("/suggestions/{id}/reject")
+    @PreAuthorize("@authz.canAccessGoalSuggestion(#id)")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void rejectSuggestion(
             @PathVariable UUID id,
@@ -86,6 +89,7 @@ public class GoalController {
 
     /** Mark goal as completed */
     @PutMapping("/{id}/complete")
+    @PreAuthorize("@authz.canAccessGoal(#id)")
     public ResponseEntity<GoalResponse> completeGoal(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal p) {
@@ -93,6 +97,7 @@ public class GoalController {
     }
 
     @PutMapping("/{id}/not-completed")
+    @PreAuthorize("@authz.canAccessGoal(#id)")
     public ResponseEntity<GoalResponse> markNotCompleted(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal p) {
@@ -101,6 +106,7 @@ public class GoalController {
 
     /** Dismiss goal */
     @PutMapping("/{id}/dismiss")
+    @PreAuthorize("@authz.canAccessGoal(#id)")
     public ResponseEntity<GoalResponse> dismissGoal(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal p) {
@@ -108,6 +114,7 @@ public class GoalController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@authz.canAccessGoal(#id)")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteGoal(
             @PathVariable UUID id,

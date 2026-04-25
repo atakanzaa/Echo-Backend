@@ -1,5 +1,6 @@
 package com.echo.service;
 
+import com.echo.domain.subscription.AppleNotificationType;
 import com.echo.domain.subscription.Subscription;
 import com.echo.domain.subscription.SubscriptionEvent;
 import com.echo.domain.subscription.SubscriptionStatus;
@@ -132,31 +133,31 @@ public class SubscriptionService {
         }
 
         User user = subscription.getUser();
-        String type = upper(notification.notificationType());
+        AppleNotificationType type = AppleNotificationType.fromString(notification.notificationType());
         String subtype = upper(notification.subtype());
 
         switch (type) {
-            case "SUBSCRIBED", "INITIAL_BUY" -> {
+            case SUBSCRIBED, INITIAL_BUY -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.ACTIVE);
                 saveEvent(subscription, user, "SUBSCRIBED", notification.rawPayload());
             }
-            case "DID_RENEW" -> {
+            case DID_RENEW -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.ACTIVE);
                 saveEvent(subscription, user, "RENEWED", notification.rawPayload());
             }
-            case "DID_FAIL_TO_RENEW" -> {
+            case DID_FAIL_TO_RENEW -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.BILLING_RETRY);
                 saveEvent(subscription, user, "BILLING_RETRY", notification.rawPayload());
             }
-            case "GRACE_PERIOD_EXPIRED", "EXPIRED" -> {
+            case GRACE_PERIOD_EXPIRED, EXPIRED -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.EXPIRED);
                 saveEvent(subscription, user, "EXPIRED", notification.rawPayload());
             }
-            case "REVOKE", "REVOKED" -> {
+            case REVOKE, REVOKED -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.REVOKED);
                 saveEvent(subscription, user, "REVOKED", notification.rawPayload());
             }
-            case "DID_CHANGE_RENEWAL_STATUS" -> {
+            case DID_CHANGE_RENEWAL_STATUS -> {
                 if ("AUTO_RENEW_DISABLED".equals(subtype)) {
                     subscription.setAutoRenewEnabled(false);
                     saveEvent(subscription, user, "CANCELLED", notification.rawPayload());
@@ -167,9 +168,9 @@ public class SubscriptionService {
                     saveEvent(subscription, user, "RENEWED", notification.rawPayload());
                 }
             }
-            default -> {
-                // Some notifications are informative and do not require entitlement changes.
-                log.info("Unhandled Apple notification type: type={}, subtype={}", type, subtype);
+            case UNKNOWN -> {
+                log.info("Unhandled Apple notification type: type={}, subtype={}",
+                        notification.notificationType(), subtype);
                 return;
             }
         }

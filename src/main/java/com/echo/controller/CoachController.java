@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,6 +46,7 @@ public class CoachController {
     }
 
     @GetMapping("/sessions/{sessionId}/messages")
+    @PreAuthorize("@authz.canAccessCoachSession(#sessionId)")
     public ResponseEntity<PagedResponse<CoachMessageResponse>> getMessages(
             @PathVariable UUID sessionId,
             @RequestParam(defaultValue = "0") int page,
@@ -55,6 +57,7 @@ public class CoachController {
     }
 
     @PostMapping("/sessions/{sessionId}/messages")
+    @PreAuthorize("@authz.canAccessCoachSession(#sessionId)")
     public ResponseEntity<List<CoachMessageResponse>> sendMessage(
             @PathVariable UUID sessionId,
             @Valid @RequestBody SendCoachMessageRequest request,
@@ -65,6 +68,7 @@ public class CoachController {
 
     /** iOS calls this when the user leaves the coach screen — soft-close + async memory update */
     @PostMapping("/sessions/{sessionId}/end")
+    @PreAuthorize("@authz.canAccessCoachSession(#sessionId)")
     public ResponseEntity<Void> endSession(
             @PathVariable UUID sessionId, @AuthenticationPrincipal UserPrincipal p) {
         coachService.endSession(sessionId, p.getId());
@@ -72,6 +76,7 @@ public class CoachController {
     }
 
     @DeleteMapping("/sessions/{sessionId}")
+    @PreAuthorize("@authz.canAccessCoachSession(#sessionId)")
     public ResponseEntity<Void> deleteSession(
             @PathVariable UUID sessionId, @AuthenticationPrincipal UserPrincipal p) {
         coachService.deleteSession(sessionId, p.getId());

@@ -15,6 +15,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -85,6 +86,7 @@ public class JournalController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@authz.canAccessJournalEntry(#id)")
     public ResponseEntity<JournalEntryResponse> getEntry(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -93,6 +95,7 @@ public class JournalController {
     }
 
     @GetMapping("/{id}/status")
+    @PreAuthorize("@authz.canAccessJournalEntry(#id)")
     public ResponseEntity<JournalStatusResponse> getStatus(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {

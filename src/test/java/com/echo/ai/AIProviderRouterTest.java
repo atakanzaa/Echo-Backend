@@ -92,17 +92,21 @@ class AIProviderRouterTest {
                                     GeminiTranscriptionProvider geminiTranscription) {
         return new AIProviderRouter(
                 props,
-                openAITranscription,
-                mock(OpenAIAnalysisProvider.class),
-                mock(OpenAICoachProvider.class),
-                mock(OpenAISynthesisProvider.class),
-                geminiTranscription,
-                mock(GeminiAnalysisProvider.class),
-                mock(GeminiCoachProvider.class),
-                mock(GeminiSynthesisProvider.class),
-                mock(ClaudeTranscriptionProvider.class),
-                mock(ClaudeAnalysisProvider.class),
-                mock(ClaudeCoachProvider.class)
+                List.of(openAITranscription, geminiTranscription, mock(ClaudeTranscriptionProvider.class)),
+                List.of(
+                        mock(OpenAIAnalysisProvider.class),
+                        mock(GeminiAnalysisProvider.class),
+                        mock(ClaudeAnalysisProvider.class)
+                ),
+                List.of(
+                        mock(OpenAICoachProvider.class),
+                        mock(GeminiCoachProvider.class),
+                        mock(ClaudeCoachProvider.class)
+                ),
+                List.of(
+                        mock(OpenAISynthesisProvider.class),
+                        mock(GeminiSynthesisProvider.class)
+                )
         );
     }
 }

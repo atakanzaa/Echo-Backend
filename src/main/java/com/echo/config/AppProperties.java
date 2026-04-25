@@ -30,6 +30,7 @@ public class AppProperties {
     @NestedConfigurationProperty
     @Valid private Apple apple = new Apple();
     private Prompts prompts = new Prompts();
+    @Valid private Dlq dlq = new Dlq();
 
     @PostConstruct
     public void validate() {
@@ -163,6 +164,16 @@ public class AppProperties {
     @Getter @Setter
     public static class Google {
         private String clientId;
+    }
+
+    @Getter @Setter
+    public static class Dlq {
+        /** Max retry attempts before marking job ABANDONED. */
+        @Positive private int maxAttempts = 5;
+        /** Base backoff in minutes; actual delay = base * 2^attempt (exponential). */
+        @Positive private long baseBackoffMinutes = 5;
+        /** Cap for exponential backoff to avoid runaway delays. */
+        @Positive private long maxBackoffMinutes = 240;
     }
 
     @Getter @Setter

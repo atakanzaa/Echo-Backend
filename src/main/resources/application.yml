@@ -86,6 +86,11 @@ app:
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
 
+  dlq:
+    max-attempts: ${DLQ_MAX_ATTEMPTS:5}
+    base-backoff-minutes: ${DLQ_BASE_BACKOFF_MINUTES:5}
+    max-backoff-minutes: ${DLQ_MAX_BACKOFF_MINUTES:240}
+
   resend:
     api-key: ${RESEND_API_KEY:}
     webhook-secret: ${RESEND_WEBHOOK_SECRET:}
@@ -109,6 +114,13 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  tracing:
+    sampling:
+      probability: ${OTEL_TRACE_SAMPLE_RATE:0.1}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:}
+      timeout: 10s
 
 resilience4j:
   circuitbreaker:

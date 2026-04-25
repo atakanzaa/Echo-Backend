@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,12 +41,14 @@ public class TimeCapsuleController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@authz.canAccessTimeCapsule(#id)")
     public ResponseEntity<TimeCapsuleResponse> getCapsule(
             @PathVariable UUID id, @AuthenticationPrincipal UserPrincipal p) {
         return ResponseEntity.ok(timeCapsuleService.getCapsule(id, p.getId()));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@authz.canAccessTimeCapsule(#id)")
     public ResponseEntity<Void> deleteCapsule(
             @PathVariable UUID id, @AuthenticationPrincipal UserPrincipal p) {
         timeCapsuleService.deleteCapsule(id, p.getId());

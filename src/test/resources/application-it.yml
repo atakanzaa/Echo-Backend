@@ -1,0 +1,29 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  task:
+    scheduling:
+      enabled: false
+
+app:
+  ai:
+    provider: gemini
+    gemini:
+      api-key: test-gemini-key
+    openai:
+      api-key: test-openai-key
+    claude:
+      api-key: test-claude-key
+  storage:
+    type: local
+    local-images-path: /tmp/echo-it
+  resend:
+    enabled: false
+
+management:
+  otlp:
+    tracing:
+      endpoint: ""
