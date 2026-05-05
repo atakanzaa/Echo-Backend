@@ -1,5 +1,6 @@
 package com.echo.event;
 
+import com.echo.domain.capsule.CapsuleStatus;
 import com.echo.domain.capsule.TimeCapsule;
 import com.echo.domain.subscription.FeatureKey;
 import com.echo.domain.user.User;
@@ -51,7 +52,7 @@ public class TimeCapsuleEventListener {
         }
 
         int limit = entitlementService.getLimit(user.getId(), FeatureKey.ACTIVE_TIME_CAPSULES);
-        int activeCapsules = timeCapsuleRepository.countByUserIdAndStatus(user.getId(), "sealed");
+        int activeCapsules = timeCapsuleRepository.countByUserIdAndStatus(user.getId(), CapsuleStatus.SEALED);
         if (limit != -1 && activeCapsules >= limit) {
             log.info("Time capsule limit reached, skipping auto capsule creation: userId={}, limit={}",
                     user.getId(), limit);
@@ -75,7 +76,7 @@ public class TimeCapsuleEventListener {
                     .sourceJournalEntryId(event.journalEntryId())
                     .sealedAt(now)
                     .unlockAt(now.plusYears(1))
-                    .status("sealed")
+                    .status(CapsuleStatus.SEALED)
                     .build();
 
             timeCapsuleRepository.save(capsule);

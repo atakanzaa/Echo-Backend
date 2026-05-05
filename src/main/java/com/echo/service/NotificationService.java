@@ -1,5 +1,6 @@
 package com.echo.service;
 
+import com.echo.domain.capsule.CapsuleStatus;
 import com.echo.domain.capsule.TimeCapsule;
 import com.echo.domain.notification.Notification;
 import com.echo.domain.notification.NotificationType;
@@ -121,8 +122,8 @@ public class NotificationService {
     @Transactional
     public void notifyUnlockedCapsules() {
         OffsetDateTime now = OffsetDateTime.now();
-        for (TimeCapsule capsule : timeCapsuleRepository.findByStatusAndUnlockAtLessThanEqual("sealed", now)) {
-            capsule.setStatus("unlocked");
+        for (TimeCapsule capsule : timeCapsuleRepository.findByStatusAndUnlockAtLessThanEqual(CapsuleStatus.SEALED, now)) {
+            capsule.setStatus(CapsuleStatus.UNLOCKED);
             timeCapsuleRepository.save(capsule);
 
             notify(

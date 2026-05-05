@@ -4,7 +4,6 @@ import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.subscription.FeatureKey;
 import com.echo.dto.response.AIInsightsResponse;
 import com.echo.dto.response.InsightsPeriodEligibilityResponse;
-import com.echo.exception.QuotaExceededException;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -51,12 +50,13 @@ public class AIInsightsService {
 
     @Transactional(readOnly = true)
     public AIInsightsResponse getInsights(UUID userId, int periodDays) {
+        // Clamp period to user's entitlement instead of throwing 403.
+        // Free tier sees the longest period they're allowed to (typically 7 days);
+        // upsell can be surfaced client-side via the eligibility endpoint.
         int maxPeriod = entitlementService.getLimit(userId, FeatureKey.INSIGHTS_MAX_PERIOD);
         if (maxPeriod != -1 && periodDays > maxPeriod) {
-            throw new QuotaExceededException(
-                    "INSIGHTS_PERIOD_LOCKED",
-                    "Requested insights period is locked for your tier. Upgrade to Premium for longer periods."
-            );
+            log.debug("Clamping insights period {} -> {} (entitlement) for user {}", periodDays, maxPeriod, userId);
+            periodDays = maxPeriod;
         }
 
         PeriodUnlockRule rule = getRule(periodDays);
@@ -66,14 +66,20 @@ public class AIInsightsService {
                 toPeriodOption(rule, totalEntries, totalDistinctDays);
 
         if (!eligibility.unlocked()) {
-            throw new IllegalArgumentException(String.format(
-                    "Period %d is locked. Need at least %d entries across %d distinct days (current: %d entries, %d distinct days).",
+            // Period not yet earned (not enough entries) — return an empty payload
+            // instead of HTTP 400 so the client can render the "insufficient data"
+            // empty state without surfacing an error.
+            return new AIInsightsResponse(
                     periodDays,
-                    eligibility.requiredEntries(),
-                    eligibility.requiredDistinctDays(),
-                    eligibility.currentEntries(),
-                    eligibility.currentDistinctDays()
-            ));
+                    0.0,
+                    "",
+                    List.of(),
+                    List.of(),
+                    0.0,
+                    false,
+                    false,
+                    0
+            );
         }
 
         LocalDate endDate   = LocalDate.now();

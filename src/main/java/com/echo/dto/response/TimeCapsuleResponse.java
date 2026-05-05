@@ -1,5 +1,6 @@
 package com.echo.dto.response;
 
+import com.echo.domain.capsule.CapsuleStatus;
 import com.echo.domain.capsule.TimeCapsule;
 
 import java.util.UUID;
@@ -17,14 +18,14 @@ public record TimeCapsuleResponse(
         boolean canOpen
 ) {
     public static TimeCapsuleResponse from(TimeCapsule capsule) {
-        boolean opened = TimeCapsule.STATUS_OPENED.equals(capsule.getStatus());
+        boolean opened = capsule.getStatus() == CapsuleStatus.OPENED;
         return new TimeCapsuleResponse(
                 capsule.getId(),
                 capsule.getTitle(),
                 capsule.getContentType(),
                 opened ? capsule.getContentText() : null,
                 capsule.getAudioDuration(),
-                capsule.getStatus(),
+                capsule.getStatus().name().toLowerCase(),
                 capsule.getSealedAt().toString(),
                 capsule.getUnlockAt().toString(),
                 capsule.getOpenedAt() != null ? capsule.getOpenedAt().toString() : null,

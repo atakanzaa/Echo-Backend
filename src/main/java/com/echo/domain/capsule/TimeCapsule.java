@@ -13,8 +13,6 @@ import java.util.UUID;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class TimeCapsule {
     public static final String CONTENT_TYPE_TEXT = "text";
-    public static final String STATUS_SEALED = "sealed";
-    public static final String STATUS_OPENED = "opened";
 
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "user_id") private User user;
@@ -27,7 +25,12 @@ public class TimeCapsule {
     @Column(name = "sealed_at", nullable = false) private OffsetDateTime sealedAt;
     @Column(name = "unlock_at", nullable = false) private OffsetDateTime unlockAt;
     @Column(name = "opened_at") private OffsetDateTime openedAt;
-    @Column(nullable = false, length = 20) @Builder.Default private String status = STATUS_SEALED;
+
+    @Convert(converter = CapsuleStatusConverter.class)
+    @Column(nullable = false)
+    @Builder.Default
+    private CapsuleStatus status = CapsuleStatus.SEALED;
+
     @CreationTimestamp @Column(name = "created_at", nullable = false, updatable = false) private OffsetDateTime createdAt;
 
     public boolean isUnlocked() { return OffsetDateTime.now().isAfter(unlockAt); }

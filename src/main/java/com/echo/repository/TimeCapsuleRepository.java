@@ -1,5 +1,6 @@
 package com.echo.repository;
 
+import com.echo.domain.capsule.CapsuleStatus;
 import com.echo.domain.capsule.TimeCapsule;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +17,6 @@ public interface TimeCapsuleRepository extends JpaRepository<TimeCapsule, UUID> 
     Page<TimeCapsule> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
     Optional<TimeCapsule> findByIdAndUserId(UUID id, UUID userId);
     boolean existsByUserIdAndSourceJournalEntryId(UUID userId, UUID sourceJournalEntryId);
-    List<TimeCapsule> findByStatusAndUnlockAtLessThanEqual(String status, OffsetDateTime unlockAt);
-    int countByUserIdAndStatus(UUID userId, String status);
+    List<TimeCapsule> findByStatusAndUnlockAtLessThanEqual(CapsuleStatus status, OffsetDateTime unlockAt);
+    int countByUserIdAndStatus(UUID userId, CapsuleStatus status);
 }

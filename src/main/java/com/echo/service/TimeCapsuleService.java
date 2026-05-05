@@ -1,5 +1,6 @@
 package com.echo.service;
 
+import com.echo.domain.capsule.CapsuleStatus;
 import com.echo.domain.capsule.TimeCapsule;
 import com.echo.domain.subscription.FeatureKey;
 import com.echo.domain.user.User;
@@ -39,7 +40,7 @@ public class TimeCapsuleService {
     @Transactional
     public TimeCapsuleResponse createCapsule(UUID userId, CreateCapsuleRequest request) {
         int limit = entitlementService.getLimit(userId, FeatureKey.ACTIVE_TIME_CAPSULES);
-        int activeCapsules = timeCapsuleRepository.countByUserIdAndStatus(userId, TimeCapsule.STATUS_SEALED);
+        int activeCapsules = timeCapsuleRepository.countByUserIdAndStatus(userId, CapsuleStatus.SEALED);
         if (limit != -1 && activeCapsules >= limit) {
             throw new QuotaExceededException(
                     "CAPSULE_LIMIT",
@@ -63,7 +64,7 @@ public class TimeCapsuleService {
                 .contentType(TimeCapsule.CONTENT_TYPE_TEXT)
                 .sealedAt(OffsetDateTime.now())
                 .unlockAt(unlockAt)
-                .status(TimeCapsule.STATUS_SEALED)
+                .status(CapsuleStatus.SEALED)
                 .build();
         return TimeCapsuleResponse.from(timeCapsuleRepository.save(capsule));
     }
@@ -76,8 +77,8 @@ public class TimeCapsuleService {
             throw new CapsuleStillLockedException(
                     "This capsule is locked until " + capsule.getUnlockAt());
         }
-        if (!TimeCapsule.STATUS_OPENED.equals(capsule.getStatus())) {
-            capsule.setStatus(TimeCapsule.STATUS_OPENED);
+        if (capsule.getStatus() != CapsuleStatus.OPENED) {
+            capsule.setStatus(CapsuleStatus.OPENED);
             capsule.setOpenedAt(OffsetDateTime.now());
             timeCapsuleRepository.save(capsule);
         }
@@ -88,7 +89,7 @@ public class TimeCapsuleService {
     public void deleteCapsule(UUID capsuleId, UUID userId) {
         TimeCapsule capsule = timeCapsuleRepository.findByIdAndUserId(capsuleId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Capsule not found"));
-        if (!TimeCapsule.STATUS_SEALED.equals(capsule.getStatus())) {
+        if (capsule.getStatus() != CapsuleStatus.SEALED) {
             throw new IllegalArgumentException("Only sealed capsules can be deleted");
         }
         timeCapsuleRepository.delete(capsule);
