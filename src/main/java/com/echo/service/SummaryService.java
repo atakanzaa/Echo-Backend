@@ -31,7 +31,7 @@ public class SummaryService {
 
     @Transactional(readOnly = true)
     public SummaryResponse getSummary(UUID userId, SummaryPeriod period, LocalDate endDate) {
-        // Tier-based period gating temporarily disabled (test phase).
+        // TODO Atakan: tier-based period gating temporarily disabled (test phase).
         // Re-enable by reading FeatureKey.SUMMARY_MAX_PERIOD via entitlementService
         // and surfacing 402 + locked-period UX (see plan).
         LocalDate startDate = endDate.minusDays(period.getDays() - 1);
