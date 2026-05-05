@@ -31,16 +31,9 @@ public class SummaryService {
 
     @Transactional(readOnly = true)
     public SummaryResponse getSummary(UUID userId, SummaryPeriod period, LocalDate endDate) {
-        // Clamp to user's entitlement instead of throwing 403.
-        // Free tier sees the longest period they're entitled to (typically 7 days);
-        // an upsell can be surfaced client-side via /subscription/status.
-        int maxPeriod = entitlementService.getLimit(userId, FeatureKey.SUMMARY_MAX_PERIOD);
-        if (maxPeriod != -1 && period.getDays() > maxPeriod) {
-            log.debug("Clamping summary period {} -> {} (entitlement) for user {}",
-                    period.getDays(), maxPeriod, userId);
-            period = SummaryPeriod.fromDays(maxPeriod);
-        }
-
+        // Tier-based period gating temporarily disabled (test phase).
+        // Re-enable by reading FeatureKey.SUMMARY_MAX_PERIOD via entitlementService
+        // and surfacing 402 + locked-period UX (see plan).
         LocalDate startDate = endDate.minusDays(period.getDays() - 1);
         List<AnalysisResult> results = analysisResultRepository
                 .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(userId, startDate, endDate);

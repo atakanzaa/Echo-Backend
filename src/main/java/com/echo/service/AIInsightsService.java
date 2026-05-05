@@ -50,15 +50,9 @@ public class AIInsightsService {
 
     @Transactional(readOnly = true)
     public AIInsightsResponse getInsights(UUID userId, int periodDays) {
-        // Clamp period to user's entitlement instead of throwing 403.
-        // Free tier sees the longest period they're allowed to (typically 7 days);
-        // upsell can be surfaced client-side via the eligibility endpoint.
-        int maxPeriod = entitlementService.getLimit(userId, FeatureKey.INSIGHTS_MAX_PERIOD);
-        if (maxPeriod != -1 && periodDays > maxPeriod) {
-            log.debug("Clamping insights period {} -> {} (entitlement) for user {}", periodDays, maxPeriod, userId);
-            periodDays = maxPeriod;
-        }
-
+        // Tier-based period gating temporarily disabled (test phase).
+        // Re-enable by reading FeatureKey.INSIGHTS_MAX_PERIOD via entitlementService
+        // and surfacing 402 + locked-period UX (see plan).
         PeriodUnlockRule rule = getRule(periodDays);
         int totalEntries = toInt(analysisResultRepository.countByUserId(userId));
         int totalDistinctDays = toInt(analysisResultRepository.countDistinctEntryDatesByUserId(userId));
