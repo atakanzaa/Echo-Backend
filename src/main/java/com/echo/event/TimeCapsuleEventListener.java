@@ -19,9 +19,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.time.OffsetDateTime;
 
 /**
- * Analiz tamamlandığında memoryWorthy=true ise otomatik zaman kapsülü oluşturur.
- * Kilit süresi: 1 yıl. Kullanıcı sonradan silebilir.
- * AFTER_COMMIT — ana transaction commit olduktan sonra ayrı transaction'da çalışır.
+ * Creates an automatic time capsule when analysis flags the entry as memory-worthy.
+ * Lock duration: 1 year. User may delete it later. Runs AFTER_COMMIT in a new transaction.
  */
 @Slf4j
 @Component
@@ -42,7 +41,7 @@ public class TimeCapsuleEventListener {
 
         User user = userRepository.findById(event.userId()).orElse(null);
         if (user == null) {
-            log.warn("Kullanıcı bulunamadı, zaman kapsülü oluşturulamadı: userId={}", event.userId());
+            log.warn("User not found, skipping time capsule creation: userId={}", event.userId());
             return;
         }
 
@@ -72,7 +71,7 @@ public class TimeCapsuleEventListener {
                     .user(user)
                     .title(title)
                     .contentText(content)
-                    .contentType("text")
+                    .contentType(TimeCapsule.CONTENT_TYPE_TEXT)
                     .sourceJournalEntryId(event.journalEntryId())
                     .sealedAt(now)
                     .unlockAt(now.plusYears(1))
@@ -80,10 +79,11 @@ public class TimeCapsuleEventListener {
                     .build();
 
             timeCapsuleRepository.save(capsule);
-            log.info("Zaman kapsülü oluşturuldu: userId={}, title='{}', unlockAt={}",
-                    event.userId(), title, capsule.getUnlockAt());
+            log.debug("Time capsule created: userId={}, unlockAt={}",
+                    event.userId(), capsule.getUnlockAt());
         } catch (Exception e) {
-            log.error("Zaman kapsülü oluşturulamadı: userId={}, hata={}", event.userId(), e.getMessage(), e);
+            // listener runs AFTER_COMMIT in REQUIRES_NEW; failure is best-effort logged so it does not roll back the parent flow
+            log.error("Time capsule creation failed: userId={}", event.userId(), e);
         }
     }
 }

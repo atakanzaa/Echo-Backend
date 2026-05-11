@@ -126,7 +126,7 @@ public class GeminiSynthesisProvider implements AISynthesisProvider {
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
-        log.error("Gemini synthesis unavailable: {}", ex.getMessage());
+        log.error("Gemini synthesis circuit open", ex);
         throw new ServiceUnavailableException("AI synthesis service is temporarily unavailable.", ex);
     }
 

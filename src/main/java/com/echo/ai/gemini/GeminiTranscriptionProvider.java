@@ -175,7 +175,7 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
         if (ex instanceof TranscriptionFailedException transcriptionFailedException) {
             throw transcriptionFailedException;
         }
-        log.error("Gemini transcription circuit open: {}", ex.getMessage());
+        log.error("Gemini transcription circuit open", ex);
         throw new ServiceUnavailableException("Speech recognition service is temporarily unavailable.", ex);
     }
 

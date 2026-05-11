@@ -68,11 +68,14 @@ public class SummaryService {
                 .map(Map.Entry::getKey)
                 .toList();
 
-        // Energy distribution
-        Map<String, Integer> energyDist = new HashMap<>();
-        energyDist.put("high",   (int) results.stream().filter(r -> "high".equals(r.getEnergyLevel())).count());
-        energyDist.put("medium", (int) results.stream().filter(r -> "medium".equals(r.getEnergyLevel())).count());
-        energyDist.put("low",    (int) results.stream().filter(r -> "low".equals(r.getEnergyLevel())).count());
+        // Energy distribution — single pass over results
+        Map<String, Integer> energyDist = new HashMap<>(Map.of("high", 0, "medium", 0, "low", 0));
+        for (AnalysisResult r : results) {
+            String level = r.getEnergyLevel();
+            if (level != null && energyDist.containsKey(level)) {
+                energyDist.merge(level, 1, Integer::sum);
+            }
+        }
 
         // Best/worst day
         String bestDay  = results.stream().max(Comparator.comparing(r -> r.getMoodScore().doubleValue()))

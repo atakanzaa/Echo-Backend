@@ -242,8 +242,8 @@ public class AppleStoreKitService {
     }
 
     JWKSet getJwkSetFallback(String environment, Exception ex) {
-        log.error("Apple JWKS fetch failed (circuit open): env={}, error={}", environment, ex.getMessage());
-        throw new ServiceUnavailableException("Apple StoreKit is temporarily unavailable");
+        log.error("Apple JWKS fetch failed (circuit open): env={}", environment, ex);
+        throw new ServiceUnavailableException("Apple StoreKit is temporarily unavailable", ex);
     }
 
     private void verifyCertificateChain(JWSHeader header) {

@@ -81,7 +81,7 @@ public class GoalService {
                 .user(user)
                 .title(compactText(request.title()))
                 .timeframe(compactText(request.timeframe()))
-                .goalType("general")
+                .goalType(Goal.DEFAULT_GOAL_TYPE)
                 .creationType(GoalCreationType.MANUAL)
                 .status(GoalStatus.PENDING)
                 .detectedAt(OffsetDateTime.now())

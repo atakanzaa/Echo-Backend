@@ -35,6 +35,10 @@ public class ResendWebhookService {
 
     private static final long TIMESTAMP_TOLERANCE_SECONDS = 300;
 
+    private static final String EVENT_BOUNCED = "email.bounced";
+    private static final String EVENT_COMPLAINED = "email.complained";
+    private static final String EVENT_SUPPRESSED = "email.suppressed";
+
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
     private final ResendWebhookEventRepository resendWebhookEventRepository;
@@ -154,7 +158,7 @@ public class ResendWebhookService {
         try {
             return objectMapper.readTree(payload);
         } catch (Exception ex) {
-            throw new IllegalArgumentException("Invalid Resend webhook payload");
+            throw new IllegalArgumentException("Invalid Resend webhook payload", ex);
         }
     }
 
@@ -167,25 +171,25 @@ public class ResendWebhookService {
             user.setEmailSuppressedReason(reason);
             user.setEmailSuppressedAt(OffsetDateTime.now());
             userRepository.save(user);
-            log.warn("User email suppressed after Resend webhook: userId={}, email={}, reason={}",
-                    user.getId(), user.getEmail(), reason);
+            log.warn("User email suppressed after Resend webhook: userId={}, reason={}",
+                    user.getId(), reason);
         });
     }
 
     private boolean isSuppressionEvent(String eventType) {
-        return "email.bounced".equals(eventType)
-                || "email.complained".equals(eventType)
-                || "email.suppressed".equals(eventType);
+        return EVENT_BOUNCED.equals(eventType)
+                || EVENT_COMPLAINED.equals(eventType)
+                || EVENT_SUPPRESSED.equals(eventType);
     }
 
     private String suppressionReason(String eventType, JsonNode data) {
-        if ("email.bounced".equals(eventType)) {
+        if (EVENT_BOUNCED.equals(eventType)) {
             return text(data.path("bounce"), "type", "BOUNCED");
         }
-        if ("email.suppressed".equals(eventType)) {
+        if (EVENT_SUPPRESSED.equals(eventType)) {
             return text(data.path("suppressed"), "type", "SUPPRESSED");
         }
-        if ("email.complained".equals(eventType)) {
+        if (EVENT_COMPLAINED.equals(eventType)) {
             return "COMPLAINED";
         }
         return "UNKNOWN";

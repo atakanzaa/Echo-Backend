@@ -42,7 +42,7 @@ public class TrustedProxyResolver {
                 }
             }
         } catch (Exception ex) {
-            log.error("Failed to read {}: {}", CIDR_RESOURCE, ex.getMessage());
+            log.error("Failed to read {}", CIDR_RESOURCE, ex);
         }
         log.info("Trusted proxy ranges loaded: {}", ranges.size());
     }

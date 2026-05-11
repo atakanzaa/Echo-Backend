@@ -32,9 +32,11 @@ public class Goal {
     @Column(columnDefinition = "TEXT")
     private String timeframe;
 
+    public static final String DEFAULT_GOAL_TYPE = "general";
+
     @Column(name = "goal_type", length = 50)
     @Builder.Default
-    private String goalType = "general";
+    private String goalType = DEFAULT_GOAL_TYPE;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "creation_type", nullable = false, length = 20)

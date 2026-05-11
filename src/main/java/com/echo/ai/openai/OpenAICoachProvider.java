@@ -154,7 +154,7 @@ public class OpenAICoachProvider implements AICoachProvider {
     }
 
     private AICoachResponse chatFallback(AICoachRequest request, Throwable ex) {
-        log.error("OpenAI coach circuit open: {}", ex.getMessage());
+        log.error("OpenAI coach circuit open", ex);
         throw new ServiceUnavailableException("AI coach service is temporarily unavailable.", ex);
     }
 

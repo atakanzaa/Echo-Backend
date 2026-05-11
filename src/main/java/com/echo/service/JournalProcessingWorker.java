@@ -44,7 +44,7 @@ public class JournalProcessingWorker {
             log.error("Transcript analysis failed: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));
             aiJobDlqService.enqueue(
-                    entryId, "ANALYSIS", classifyError(e), buildPayload(entryId, userId)
+                    entryId, AiJobDlqService.JOB_TYPE_ANALYSIS, classifyError(e), buildPayload(entryId, userId)
             );
         }
     }
@@ -109,7 +109,7 @@ public class JournalProcessingWorker {
             log.error("Analysis failed after successful transcription: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));
             aiJobDlqService.enqueue(
-                    entryId, "ANALYSIS", classifyError(e), buildPayload(entryId, userId)
+                    entryId, AiJobDlqService.JOB_TYPE_ANALYSIS, classifyError(e), buildPayload(entryId, userId)
             );
         }
     }

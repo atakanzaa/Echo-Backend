@@ -207,7 +207,7 @@ public class GoalIntegrationService {
                 .user(user)
                 .title(suggestion.getTitle())
                 .timeframe(suggestion.getTimeframe())
-                .goalType(StringUtils.hasText(suggestion.getGoalType()) ? suggestion.getGoalType() : "general")
+                .goalType(StringUtils.hasText(suggestion.getGoalType()) ? suggestion.getGoalType() : Goal.DEFAULT_GOAL_TYPE)
                 .creationType(GoalCreationType.AI)
                 .status(GoalStatus.PENDING)
                 .sourceJournalEntryId(suggestion.getSourceJournalEntryId())
@@ -711,7 +711,7 @@ public class GoalIntegrationService {
 
     private String cleanGoalType(String goalType) {
         String cleaned = cleanText(goalType);
-        return StringUtils.hasText(cleaned) ? cleaned : "general";
+        return StringUtils.hasText(cleaned) ? cleaned : Goal.DEFAULT_GOAL_TYPE;
     }
 
     private String cleanText(String value) {

@@ -112,9 +112,8 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
-        log.error("OpenAI synthesis devre dışı (circuit open): {}", ex.getMessage());
-        throw new ServiceUnavailableException(
-                "AI sentez servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
+        log.error("OpenAI synthesis circuit open", ex);
+        throw new ServiceUnavailableException("AI synthesis service is temporarily unavailable.", ex);
     }
 
     private String buildUserMessage(AISynthesisRequest req) {

@@ -148,7 +148,7 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
     }
 
     private AIAnalysisResponse analyzeFallback(AIAnalysisRequest request, Throwable ex) {
-        log.error("Claude analysis circuit open: {}", ex.getMessage());
+        log.error("Claude analysis circuit open", ex);
         throw new ServiceUnavailableException("AI analysis service is temporarily unavailable.", ex);
     }
 
@@ -164,7 +164,7 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
     }
 
     private GoalMatchDecision verifyGoalMatchFallback(GoalMatchVerificationRequest request, Throwable ex) {
-        log.error("Claude goal match verifier unavailable: {}", ex.getMessage());
+        log.error("Claude goal match circuit open", ex);
         throw new ServiceUnavailableException(
                 "AI goal matching service is temporarily unavailable.", ex);
     }

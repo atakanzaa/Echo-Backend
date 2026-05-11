@@ -13,6 +13,10 @@ import java.util.UUID;
 @Table(name = "community_posts")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class CommunityPost {
+    public static final String CONTENT_TYPE_TEXT = "text";
+    public static final String CONTENT_TYPE_IMAGE = "image";
+    public static final String CONTENT_TYPE_ACHIEVEMENT = "achievement";
+
     @Id @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -21,7 +25,7 @@ public class CommunityPost {
     @Column(columnDefinition = "TEXT")
     private String content;
     @Column(name = "content_type", length = 20) @Builder.Default
-    private String contentType = "text";
+    private String contentType = CONTENT_TYPE_TEXT;
     @Column(name = "audio_url") private String audioUrl;
     @Column(name = "audio_duration") private Integer audioDuration;
     @Column(name = "image_url", length = 500) private String imageUrl;

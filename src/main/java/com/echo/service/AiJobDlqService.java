@@ -46,6 +46,8 @@ public class AiJobDlqService {
     private final PlatformTransactionManager transactionManager;
     private final AppProperties appProperties;
 
+    public static final String JOB_TYPE_ANALYSIS = "ANALYSIS";
+
     private static final int MAX_RETRY_BATCH_SIZE = 25;
     private static final int CLAIM_TTL_MINUTES = 10;
 
@@ -104,7 +106,7 @@ public class AiJobDlqService {
 
     @Transactional
     protected void replay(AiJobDlq job) {
-        if (!"ANALYSIS".equalsIgnoreCase(job.getJobType())) {
+        if (!JOB_TYPE_ANALYSIS.equalsIgnoreCase(job.getJobType())) {
             throw new IllegalArgumentException("Unsupported DLQ job type: " + job.getJobType());
         }
         replayAnalysis(job);

@@ -154,7 +154,7 @@ public class GeminiCoachProvider implements AICoachProvider {
     }
 
     private AICoachResponse chatFallback(AICoachRequest request, Throwable ex) {
-        log.error("Gemini coach circuit open: {}", ex.getMessage());
+        log.error("Gemini coach circuit open", ex);
         throw new ServiceUnavailableException("AI coach service is temporarily unavailable.", ex);
     }
 

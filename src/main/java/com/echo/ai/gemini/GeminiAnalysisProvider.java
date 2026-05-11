@@ -153,12 +153,12 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
     }
 
     private AIAnalysisResponse analyzeFallback(AIAnalysisRequest request, Throwable ex) {
-        log.error("Gemini analysis circuit open: {}", ex.getMessage());
+        log.error("Gemini analysis circuit open", ex);
         throw new ServiceUnavailableException("AI analysis service is temporarily unavailable.", ex);
     }
 
     private GoalMatchDecision verifyGoalMatchFallback(GoalMatchVerificationRequest request, Throwable ex) {
-        log.error("Gemini goal match circuit open: {}", ex.getMessage());
+        log.error("Gemini goal match circuit open", ex);
         throw new ServiceUnavailableException("AI goal matching service is temporarily unavailable.", ex);
     }
 
