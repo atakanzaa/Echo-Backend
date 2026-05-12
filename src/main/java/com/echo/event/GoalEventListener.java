@@ -26,10 +26,9 @@ public class GoalEventListener {
     public void onAnalysisCompleted(JournalAnalysisCompletedEvent event) {
         try {
             goalIntegrationService.processJournalAnalysis(event.userId(), event.journalEntryId(), event.analysis());
-            log.info("Goal integration processed: userId={}, journalEntryId={}", event.userId(), event.journalEntryId());
         } catch (Exception e) {
-            log.error("Goal integration failed: userId={}, journalEntryId={}, error={}",
-                    event.userId(), event.journalEntryId(), e.getMessage(), e);
+            log.error("Goal integration failed: userId={}, journalEntryId={}",
+                    event.userId(), event.journalEntryId(), e);
         }
     }
 }

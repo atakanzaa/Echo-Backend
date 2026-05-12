@@ -1,5 +1,6 @@
 package com.echo.controller;
 
+import com.echo.domain.community.CommunityPost;
 import com.echo.dto.request.CreateCommentRequest;
 import com.echo.dto.request.CreatePostRequest;
 import com.echo.dto.response.CommunityPostResponse;
@@ -69,7 +70,7 @@ public class CommunityController {
             @RequestParam(value = "isAnonymous", defaultValue = "false") boolean isAnonymous,
             @RequestParam(value = "badgeKey", required = false) String badgeKey,
             @AuthenticationPrincipal UserPrincipal principal) {
-        CreatePostRequest request = new CreatePostRequest(content, "image", emoji, isAnonymous, badgeKey);
+        CreatePostRequest request = new CreatePostRequest(content, CommunityPost.CONTENT_TYPE_IMAGE, emoji, isAnonymous, badgeKey);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(communityService.createPost(principal.getId(), request, image));
     }

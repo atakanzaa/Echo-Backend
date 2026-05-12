@@ -6,6 +6,7 @@ import com.echo.domain.user.User;
 import com.echo.dto.response.AchievementDetailResponse;
 import com.echo.dto.response.AchievementsResponse;
 import com.echo.event.AchievementEarnedEvent;
+import com.echo.exception.ResourceNotFoundException;
 import jakarta.persistence.EntityManager;
 import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserAchievementRepository;
@@ -56,7 +57,8 @@ public class AchievementService {
     }
 
     private void doCheckAndAward(UUID userId) {
-        User user = userRepository.findById(userId).orElseThrow();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Update streak.
         updateStreak(user);
@@ -91,7 +93,8 @@ public class AchievementService {
 
     @Transactional(readOnly = true)
     public AchievementsResponse getAchievements(UUID userId) {
-        User user = userRepository.findById(userId).orElseThrow();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         List<UserAchievement> earned = userAchievementRepository.findByUserId(userId);
         Set<String> earnedKeys = earned.stream().map(UserAchievement::getBadgeKey).collect(Collectors.toSet());
 
@@ -128,7 +131,8 @@ public class AchievementService {
 
     @Transactional(readOnly = true)
     public AchievementDetailResponse getAchievementDetail(UUID userId, String badgeKey) {
-        User user = userRepository.findById(userId).orElseThrow();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         BadgeDefinition badge = resolveBadge(badgeKey);
 
         Optional<UserAchievement> earnedAchievement =

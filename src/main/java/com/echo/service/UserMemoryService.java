@@ -36,7 +36,7 @@ public class UserMemoryService {
         UserProfileSummary profile = getOrCreate(userId);
         if (profile.getLastSynthesisAt() != null
                 && profile.getLastSynthesisAt().isAfter(OffsetDateTime.now().minusSeconds(5))) {
-            log.info("Skipping synthesis update — a more recent synthesis already applied: userId={}", userId);
+            log.debug("Skipping synthesis update — a more recent synthesis already applied: userId={}", userId);
             return;
         }
 

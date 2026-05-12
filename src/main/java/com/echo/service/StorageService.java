@@ -140,10 +140,9 @@ public class StorageService {
             Files.createDirectories(dir);
             String filename = UUID.randomUUID() + "." + extensionForMime(mimeType);
             Files.write(dir.resolve(filename), file.getBytes());
-            log.debug("Image saved locally: {}", dir.resolve(filename));
             return "/uploads/images/" + filename;
         } catch (IOException e) {
-            throw new RuntimeException("Image could not be saved", e);
+            throw new IllegalStateException("Image could not be saved", e);
         }
     }
 
@@ -174,11 +173,9 @@ public class StorageService {
                                     .build(),
                             RequestBody.fromBytes(file.getBytes())
                     );
-            String url = props.getStorage().getImagesPublicBaseUrl() + "/" + key;
-            log.debug("Image uploaded to R2: {}", url);
-            return url;
+            return props.getStorage().getImagesPublicBaseUrl() + "/" + key;
         } catch (IOException e) {
-            throw new RuntimeException("Image upload to R2 failed", e);
+            throw new IllegalStateException("Image upload to R2 failed", e);
         }
     }
 

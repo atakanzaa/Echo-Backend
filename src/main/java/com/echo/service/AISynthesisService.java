@@ -11,6 +11,7 @@ import com.echo.domain.user.User;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.CoachMessageRepository;
 import com.echo.repository.GoalRepository;
+import com.echo.exception.ResourceNotFoundException;
 import com.echo.repository.UserRepository;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
@@ -156,7 +157,8 @@ public class AISynthesisService {
 
         int completedCount = goalRepo.countByUserIdAndStatus(userId, GoalStatus.COMPLETED);
 
-        User user = userRepo.findById(userId).orElseThrow();
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         String userProfile = memoryService.getUserProfile(userId);
 
         return new AISynthesisRequest(
