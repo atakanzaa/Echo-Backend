@@ -72,7 +72,7 @@ public class TimeCapsuleEventListener {
                     .user(user)
                     .title(title)
                     .contentText(content)
-                    .contentType("text")
+                    .contentType(TimeCapsule.CONTENT_TYPE_TEXT)
                     .sourceJournalEntryId(event.journalEntryId())
                     .sealedAt(now)
                     .unlockAt(now.plusYears(1))

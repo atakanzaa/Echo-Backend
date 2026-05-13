@@ -1,5 +1,6 @@
 package com.echo.event;
 
+import com.echo.domain.notification.NotificationTargetType;
 import com.echo.domain.notification.NotificationType;
 import com.echo.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,7 @@ public class NotificationEventListener {
                 NotificationType.ANALYSIS_COMPLETE,
                 "Analysis Complete",
                 "Your journal analysis is ready.",
-                "JOURNAL_ENTRY",
+                NotificationTargetType.JOURNAL_ENTRY,
                 event.journalEntryId(),
                 "analysis_complete:" + event.journalEntryId(),
                 null
@@ -36,7 +37,7 @@ public class NotificationEventListener {
                 NotificationType.ACHIEVEMENT_EARNED,
                 "Achievement Unlocked",
                 "You earned " + event.badgeTitle() + " " + event.badgeEmoji(),
-                "ACHIEVEMENT",
+                NotificationTargetType.ACHIEVEMENT,
                 null,
                 "achievement_earned:" + event.userId() + ":" + event.badgeKey(),
                 null
@@ -53,7 +54,7 @@ public class NotificationEventListener {
                 NotificationType.POST_COMMENTED,
                 "New Comment",
                 event.anonymousPost() ? "Someone commented on your post." : "New comment on your post.",
-                "POST",
+                NotificationTargetType.POST,
                 event.postId(),
                 "post_commented:" + event.commentId(),
                 null
@@ -70,7 +71,7 @@ public class NotificationEventListener {
                 NotificationType.POST_LIKED,
                 "New Like",
                 "1 person liked your post",
-                "POST",
+                NotificationTargetType.POST,
                 event.postId(),
                 "post_liked:" + event.postId() + ":" + event.actorUserId(),
                 "post_like:" + event.postId()
@@ -87,7 +88,7 @@ public class NotificationEventListener {
                 NotificationType.COMMENT_REPLIED,
                 "New Reply",
                 event.anonymousPost() ? "Someone replied to your comment." : "You have a new reply.",
-                "POST",
+                NotificationTargetType.POST,
                 event.postId(),
                 "comment_replied:" + event.commentId(),
                 null

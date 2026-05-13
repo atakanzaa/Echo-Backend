@@ -21,7 +21,7 @@ public class CommunityPost {
     @Column(columnDefinition = "TEXT")
     private String content;
     @Column(name = "content_type", length = 20) @Builder.Default
-    private String contentType = "text";
+    private String contentType = PostContentType.TEXT;
     @Column(name = "audio_url") private String audioUrl;
     @Column(name = "audio_duration") private Integer audioDuration;
     @Column(name = "image_url", length = 500) private String imageUrl;

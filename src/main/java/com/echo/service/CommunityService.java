@@ -50,7 +50,7 @@ public class CommunityService {
     public PagedResponse<CommunityPostResponse> getFeed(UUID userId, String tab, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
-        Page<CommunityPost> posts = "following".equalsIgnoreCase(tab)
+        Page<CommunityPost> posts = FeedTab.FOLLOWING.equalsIgnoreCase(tab)
                 ? getFollowingFeed(userId, pageable)
                 : communityPostRepository.findByPublicPostTrueOrderByCreatedAtDesc(pageable);
 
@@ -89,19 +89,12 @@ public class CommunityService {
 
         String imageUrl = null;
         String content = request.content();
-        String contentType = request.contentType() != null ? request.contentType() : "text";
+        String contentType = request.contentType() != null ? request.contentType() : PostContentType.TEXT;
         String badgeKey = normalizeBadgeKey(request.badgeKey());
-
-        log.info("createPost: imageFile={} size={} contentType={} badgeKey={}",
-                imageFile != null ? imageFile.getOriginalFilename() : "null",
-                imageFile != null ? imageFile.getSize() : 0,
-                imageFile != null ? imageFile.getContentType() : "null",
-                badgeKey);
 
         if (imageFile != null && !imageFile.isEmpty()) {
             imageUrl = storageService.uploadImage(imageFile);
-            log.info("createPost: image uploaded → {}", imageUrl);
-            contentType = "image";
+            contentType = PostContentType.IMAGE;
         }
 
         if (badgeKey != null) {
@@ -111,7 +104,7 @@ public class CommunityService {
             if (content == null || content.isBlank()) {
                 content = achievementService.generateShareText(badgeKey);
             }
-            contentType = "achievement";
+            contentType = PostContentType.ACHIEVEMENT;
         }
 
         if (imageUrl == null && (content == null || content.isBlank())) {

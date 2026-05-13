@@ -3,6 +3,7 @@ package com.echo.service;
 import com.echo.domain.capsule.CapsuleStatus;
 import com.echo.domain.capsule.TimeCapsule;
 import com.echo.domain.notification.Notification;
+import com.echo.domain.notification.NotificationTargetType;
 import com.echo.domain.notification.NotificationType;
 import com.echo.domain.notification.PushToken;
 import com.echo.domain.user.User;
@@ -131,7 +132,7 @@ public class NotificationService {
                     NotificationType.CAPSULE_UNLOCKED,
                     "Time Capsule Unlocked",
                     "One of your time capsules is now ready to open.",
-                    "CAPSULE",
+                    NotificationTargetType.CAPSULE,
                     capsule.getId(),
                     "capsule_unlocked:" + capsule.getId(),
                     null

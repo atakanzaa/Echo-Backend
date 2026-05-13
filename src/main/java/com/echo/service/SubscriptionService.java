@@ -1,8 +1,10 @@
 package com.echo.service;
 
 import com.echo.domain.subscription.AppleNotificationType;
+import com.echo.domain.subscription.AppleRenewalSubtype;
 import com.echo.domain.subscription.Subscription;
 import com.echo.domain.subscription.SubscriptionEvent;
+import com.echo.domain.subscription.SubscriptionEventType;
 import com.echo.domain.subscription.SubscriptionStatus;
 import com.echo.domain.subscription.SubscriptionTier;
 import com.echo.domain.user.User;
@@ -67,7 +69,7 @@ public class SubscriptionService {
         syncUserTier(user, saved);
         userRepository.save(user);
 
-        String eventType = isNew ? "SUBSCRIBED" : "RENEWED";
+        String eventType = isNew ? SubscriptionEventType.SUBSCRIBED : SubscriptionEventType.RENEWED;
         saveEvent(saved, user, eventType, tx.rawClaims());
         entitlementService.invalidateCache(userId);
         eventPublisher.publishEvent(new PurchaseConfirmedEvent(
@@ -105,7 +107,7 @@ public class SubscriptionService {
         syncUserTier(user, saved);
         userRepository.save(user);
 
-        saveEvent(saved, user, "RESTORED", tx.rawClaims());
+        saveEvent(saved, user, SubscriptionEventType.RESTORED, tx.rawClaims());
         entitlementService.invalidateCache(userId);
 
         return toResponse(user, saved);
@@ -139,33 +141,33 @@ public class SubscriptionService {
         switch (type) {
             case SUBSCRIBED, INITIAL_BUY -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.ACTIVE);
-                saveEvent(subscription, user, "SUBSCRIBED", notification.rawPayload());
+                saveEvent(subscription, user, SubscriptionEventType.SUBSCRIBED, notification.rawPayload());
             }
             case DID_RENEW -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.ACTIVE);
-                saveEvent(subscription, user, "RENEWED", notification.rawPayload());
+                saveEvent(subscription, user, SubscriptionEventType.RENEWED, notification.rawPayload());
             }
             case DID_FAIL_TO_RENEW -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.BILLING_RETRY);
-                saveEvent(subscription, user, "BILLING_RETRY", notification.rawPayload());
+                saveEvent(subscription, user, SubscriptionEventType.BILLING_RETRY, notification.rawPayload());
             }
             case GRACE_PERIOD_EXPIRED, EXPIRED -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.EXPIRED);
-                saveEvent(subscription, user, "EXPIRED", notification.rawPayload());
+                saveEvent(subscription, user, SubscriptionEventType.EXPIRED, notification.rawPayload());
             }
             case REVOKE, REVOKED -> {
                 upsertSubscriptionFromTransaction(subscription, user, tx, subscription.getLatestReceipt(), SubscriptionStatus.REVOKED);
-                saveEvent(subscription, user, "REVOKED", notification.rawPayload());
+                saveEvent(subscription, user, SubscriptionEventType.REVOKED, notification.rawPayload());
             }
             case DID_CHANGE_RENEWAL_STATUS -> {
-                if ("AUTO_RENEW_DISABLED".equals(subtype)) {
+                if (AppleRenewalSubtype.AUTO_RENEW_DISABLED.equals(subtype)) {
                     subscription.setAutoRenewEnabled(false);
-                    saveEvent(subscription, user, "CANCELLED", notification.rawPayload());
-                } else if ("AUTO_RENEW_ENABLED".equals(subtype)) {
+                    saveEvent(subscription, user, SubscriptionEventType.CANCELLED, notification.rawPayload());
+                } else if (AppleRenewalSubtype.AUTO_RENEW_ENABLED.equals(subtype)) {
                     subscription.setAutoRenewEnabled(true);
-                    saveEvent(subscription, user, "RESTORED", notification.rawPayload());
+                    saveEvent(subscription, user, SubscriptionEventType.RESTORED, notification.rawPayload());
                 } else {
-                    saveEvent(subscription, user, "RENEWED", notification.rawPayload());
+                    saveEvent(subscription, user, SubscriptionEventType.RENEWED, notification.rawPayload());
                 }
             }
             case UNKNOWN -> {
@@ -203,7 +205,7 @@ public class SubscriptionService {
             events.add(SubscriptionEvent.builder()
                     .subscription(subscription)
                     .user(user)
-                    .eventType("EXPIRED")
+                    .eventType(SubscriptionEventType.EXPIRED)
                     .originalTransactionId(subscription.getOriginalTransactionId())
                     .productId(subscription.getProductId())
                     .environment(subscription.getEnvironment())

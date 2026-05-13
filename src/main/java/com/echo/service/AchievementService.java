@@ -221,10 +221,13 @@ public class AchievementService {
     }
 
     private BadgeDefinition resolveBadge(String badgeKey) {
+        if (badgeKey == null || badgeKey.isBlank()) {
+            throw new IllegalArgumentException("Invalid badge key: " + badgeKey);
+        }
         try {
             return BadgeDefinition.valueOf(badgeKey.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid badge key: " + badgeKey);
+            throw new IllegalArgumentException("Invalid badge key: " + badgeKey, ex);
         }
     }
 

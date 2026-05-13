@@ -1,5 +1,7 @@
 package com.echo.controller;
 
+import com.echo.domain.community.FeedTab;
+import com.echo.domain.community.PostContentType;
 import com.echo.dto.request.CreateCommentRequest;
 import com.echo.dto.request.CreatePostRequest;
 import com.echo.dto.response.CommunityPostResponse;
@@ -31,7 +33,7 @@ public class CommunityController {
 
     @GetMapping("/feed")
     public ResponseEntity<PagedResponse<CommunityPostResponse>> getFeed(
-            @RequestParam(defaultValue = "global") String tab,
+            @RequestParam(defaultValue = FeedTab.GLOBAL) String tab,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -69,7 +71,7 @@ public class CommunityController {
             @RequestParam(value = "isAnonymous", defaultValue = "false") boolean isAnonymous,
             @RequestParam(value = "badgeKey", required = false) String badgeKey,
             @AuthenticationPrincipal UserPrincipal principal) {
-        CreatePostRequest request = new CreatePostRequest(content, "image", emoji, isAnonymous, badgeKey);
+        CreatePostRequest request = new CreatePostRequest(content, PostContentType.IMAGE, emoji, isAnonymous, badgeKey);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(communityService.createPost(principal.getId(), request, image));
     }

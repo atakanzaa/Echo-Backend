@@ -1,7 +1,7 @@
 package com.echo.service;
 
+import com.echo.domain.notification.NotificationTargetType;
 import com.echo.domain.notification.NotificationType;
-import com.echo.domain.user.UserProfileSummary;
 import com.echo.repository.UserProfileSummaryRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -77,7 +77,7 @@ public class MemoryUpdateScheduler {
                                 NotificationType.WEEKLY_REFLECTION,
                                 title,
                                 body,
-                                "INSIGHTS",
+                                NotificationTargetType.INSIGHTS,
                                 null,
                                 eventId,
                                 null
