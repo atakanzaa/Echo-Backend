@@ -5,12 +5,12 @@ import com.echo.ai.AIAnalysisResponse;
 import java.util.UUID;
 
 /**
- * Günlük giriş analizi başarıyla tamamlandığında yayınlanan Spring uygulama eventi.
- * JournalService → GoalEventListener, TimeCapsuleEventListener dinler.
+ * Spring application event published after a journal analysis completes successfully.
+ * Listeners: GoalEventListener, TimeCapsuleEventListener, NotificationEventListener.
  *
- * Kafka/Redis gerektirmez — Spring ApplicationEventPublisher ile:
- * - Senkron (aynı thread) veya @Async ile asenkron dinlenebilir.
- * - @TransactionalEventListener(AFTER_COMMIT) ile transaction commit sonrası tetiklenir.
+ * No external broker required — Spring ApplicationEventPublisher:
+ * - May be handled synchronously or with @Async.
+ * - @TransactionalEventListener(AFTER_COMMIT) fires after the publishing transaction commits.
  */
 public record JournalAnalysisCompletedEvent(
         UUID               userId,

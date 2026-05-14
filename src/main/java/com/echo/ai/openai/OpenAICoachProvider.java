@@ -144,13 +144,17 @@ public class OpenAICoachProvider implements AICoachProvider {
         );
 
         Map<?, ?> body = response.getBody();
-        List<?> choices = (List<?>) body.get("choices");
+        List<?> choices = body == null ? null : (List<?>) body.get("choices");
         if (choices == null || choices.isEmpty()) {
-            throw new RuntimeException("OpenAI returned empty choices: " + body);
+            throw new RuntimeException("OpenAI coach returned no choices");
         }
         Map<?, ?> choice  = (Map<?, ?>) choices.get(0);
-        Map<?, ?> message = (Map<?, ?>) choice.get("message");
-        return new AICoachResponse((String) message.get("content"));
+        Map<?, ?> message = choice == null ? null : (Map<?, ?>) choice.get("message");
+        String content    = message == null ? null : (String) message.get("content");
+        if (content == null) {
+            throw new RuntimeException("OpenAI coach returned empty message content");
+        }
+        return new AICoachResponse(content);
     }
 
     private AICoachResponse chatFallback(AICoachRequest request, Throwable ex) {

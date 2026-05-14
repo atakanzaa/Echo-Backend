@@ -143,12 +143,16 @@ public class ClaudeCoachProvider implements AICoachProvider {
         );
 
         Map<?, ?> body = response.getBody();
-        List<?> content = (List<?>) body.get("content");
+        List<?> content = body == null ? null : (List<?>) body.get("content");
         if (content == null || content.isEmpty()) {
-            throw new RuntimeException("Claude returned empty content: " + body);
+            throw new RuntimeException("Claude coach returned no content");
         }
         Map<?, ?> block = (Map<?, ?>) content.get(0);
-        return new AICoachResponse((String) block.get("text"));
+        String text     = block == null ? null : (String) block.get("text");
+        if (text == null) {
+            throw new RuntimeException("Claude coach returned empty text");
+        }
+        return new AICoachResponse(text);
     }
 
     private AICoachResponse chatFallback(AICoachRequest request, Throwable ex) {

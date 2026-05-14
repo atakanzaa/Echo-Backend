@@ -4,8 +4,8 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
 /**
- * Java enum UPLOADING → PostgreSQL enum 'uploading' dönüşümü.
- * PostgreSQL entry_status tipi lowercase tanımlı.
+ * Maps Java enum (e.g. UPLOADING) to PostgreSQL enum 'uploading'.
+ * The PostgreSQL entry_status type is defined in lowercase.
  */
 @Converter(autoApply = true)
 public class EntryStatusConverter implements AttributeConverter<EntryStatus, String> {

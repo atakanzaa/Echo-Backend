@@ -17,4 +17,9 @@ public class CoachMessage {
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private MessageRole role;
     @Column(nullable = false, columnDefinition = "TEXT") private String content;
     @CreationTimestamp @Column(name = "created_at", nullable = false, updatable = false) private OffsetDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = OffsetDateTime.now();
+    }
 }

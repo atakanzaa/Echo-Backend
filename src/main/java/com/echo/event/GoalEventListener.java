@@ -11,7 +11,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * Analiz tamamlandığında hedef suggestion üretimini ve completion detection akışını tetikler.
+ * After a journal analysis completes, triggers goal suggestion generation and completion detection.
  */
 @Slf4j
 @Component
@@ -28,8 +28,8 @@ public class GoalEventListener {
             goalIntegrationService.processJournalAnalysis(event.userId(), event.journalEntryId(), event.analysis());
             log.info("Goal integration processed: userId={}, journalEntryId={}", event.userId(), event.journalEntryId());
         } catch (Exception e) {
-            log.error("Goal integration failed: userId={}, journalEntryId={}, error={}",
-                    event.userId(), event.journalEntryId(), e.getMessage(), e);
+            log.error("Goal integration failed: userId={}, journalEntryId={}",
+                    event.userId(), event.journalEntryId(), e);
         }
     }
 }

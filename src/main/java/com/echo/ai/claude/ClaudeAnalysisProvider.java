@@ -171,12 +171,16 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
 
     @SuppressWarnings("unchecked")
     private String extractClaudeContent(Map<?, ?> body) {
-        List<?> content = (List<?>) body.get("content");
+        List<?> content = body == null ? null : (List<?>) body.get("content");
         if (content == null || content.isEmpty()) {
-            throw new RuntimeException("Claude returned empty content: " + body);
+            throw new RuntimeException("Claude analysis returned no content");
         }
         Map<?, ?> block = (Map<?, ?>) content.get(0);
-        return (String) block.get("text");
+        String text     = block == null ? null : (String) block.get("text");
+        if (text == null) {
+            throw new RuntimeException("Claude analysis returned empty text");
+        }
+        return text;
     }
 
     private AIAnalysisResponse parseResponse(String json) {
@@ -230,7 +234,7 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
             return objectMapper.convertValue(arrayNode,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, type));
         } catch (Exception e) {
-            log.warn("'{}' alanı parse edilemedi, boş liste döndürülüyor: {}", field, e.getMessage());
+            log.warn("Field '{}' could not be parsed, returning empty list: {}", field, e.getMessage());
             return List.of();
         }
     }

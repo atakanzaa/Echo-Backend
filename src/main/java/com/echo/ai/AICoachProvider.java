@@ -3,10 +3,10 @@ package com.echo.ai;
 public interface AICoachProvider {
 
     /**
-     * Reflection coach sohbetini sürdürür.
+     * Continues the reflection coach conversation.
      *
-     * @param request Kullanıcı mesajı + önceki konuşma geçmişi
-     * @return AI coach yanıtı
+     * @param request user message plus prior conversation history
+     * @return AI coach response
      */
     AICoachResponse chat(AICoachRequest request);
 }

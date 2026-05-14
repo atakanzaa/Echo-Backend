@@ -144,13 +144,17 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
     }
 
     private String extractContent(Map<?, ?> body) {
-        List<?> choices = (List<?>) body.get("choices");
+        List<?> choices = body == null ? null : (List<?>) body.get("choices");
         if (choices == null || choices.isEmpty()) {
-            throw new RuntimeException("OpenAI returned empty choices: " + body);
+            throw new RuntimeException("OpenAI analysis returned no choices");
         }
         Map<?, ?> choice  = (Map<?, ?>) choices.get(0);
-        Map<?, ?> message = (Map<?, ?>) choice.get("message");
-        return (String) message.get("content");
+        Map<?, ?> message = choice == null ? null : (Map<?, ?>) choice.get("message");
+        String content    = message == null ? null : (String) message.get("content");
+        if (content == null) {
+            throw new RuntimeException("OpenAI analysis returned empty message content");
+        }
+        return content;
     }
 
     private static String langName(String code) {
@@ -230,7 +234,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
             return objectMapper.convertValue(arrayNode,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, type));
         } catch (Exception e) {
-            log.warn("'{}' alanı parse edilemedi, boş liste döndürülüyor: {}", field, e.getMessage());
+            log.warn("Field '{}' could not be parsed, returning empty list: {}", field, e.getMessage());
             return List.of();
         }
     }

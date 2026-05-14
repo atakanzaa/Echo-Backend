@@ -18,9 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OpenAI tabanlı synthesis provider.
- * response_format: json_object ile yapılandırılmış JSON garantisi.
- * max_tokens=1000, temperature=0.3 — tutarlı ve ekonomik çıktı.
+ * OpenAI synthesis provider.
+ * response_format: json_object guarantees structured JSON output.
+ * max_tokens=1000, temperature=0.3 — consistent and cost-efficient.
  */
 @Slf4j
 @Component
@@ -103,7 +103,6 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
         );
 
         String raw = extractContent(response.getBody());
-        log.debug("OpenAI synthesis yanıtı alındı, parse ediliyor");
         return parseResponse(raw);
     }
 
@@ -112,7 +111,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
-        log.error("OpenAI synthesis devre dışı (circuit open): {}", ex.getMessage());
+        log.error("OpenAI synthesis circuit open: {}", ex.getMessage());
         throw new ServiceUnavailableException(
                 "AI sentez servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
     }
@@ -169,16 +168,20 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
     }
 
     private String extractContent(Map<?, ?> body) {
-        List<?> choices = (List<?>) body.get("choices");
+        List<?> choices = body == null ? null : (List<?>) body.get("choices");
         if (choices == null || choices.isEmpty()) {
-            throw new RuntimeException("OpenAI boş choices döndürdü: " + body);
+            throw new RuntimeException("OpenAI synthesis returned no choices");
         }
         Map<?, ?> choice  = (Map<?, ?>) choices.get(0);
-        Map<?, ?> message = (Map<?, ?>) choice.get("message");
-        return (String) message.get("content");
+        Map<?, ?> message = choice == null ? null : (Map<?, ?>) choice.get("message");
+        String content    = message == null ? null : (String) message.get("content");
+        if (content == null) {
+            throw new RuntimeException("OpenAI synthesis returned empty message content");
+        }
+        return content;
     }
 
-    /** Markdown kod bloğu veya fazladan metin varsa temizler — ilk { ile son } arasını alır. */
+    /** Strips markdown fences or surrounding text — keeps the substring between the first { and last }. */
     private String extractJson(String raw) {
         int start = raw.indexOf('{');
         int end   = raw.lastIndexOf('}');
@@ -228,7 +231,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
             return objectMapper.convertValue(arr,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, AISynthesisResponse.Suggestion.class));
         } catch (Exception e) {
-            log.warn("Suggestions parse edilemedi: {}", e.getMessage());
+            log.warn("Failed to parse suggestions: {}", e.getMessage());
             return List.of();
         }
     }

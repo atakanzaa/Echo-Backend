@@ -19,9 +19,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.time.OffsetDateTime;
 
 /**
- * Analiz tamamlandığında memoryWorthy=true ise otomatik zaman kapsülü oluşturur.
- * Kilit süresi: 1 yıl. Kullanıcı sonradan silebilir.
- * AFTER_COMMIT — ana transaction commit olduktan sonra ayrı transaction'da çalışır.
+ * Creates an automatic time capsule when an analysis is memoryWorthy=true.
+ * Lock duration: 1 year. The user can delete it later.
+ * AFTER_COMMIT — runs in a separate transaction after the main one commits.
  */
 @Slf4j
 @Component
@@ -42,7 +42,7 @@ public class TimeCapsuleEventListener {
 
         User user = userRepository.findById(event.userId()).orElse(null);
         if (user == null) {
-            log.warn("Kullanıcı bulunamadı, zaman kapsülü oluşturulamadı: userId={}", event.userId());
+            log.warn("Time capsule creation skipped, user not found: userId={}", event.userId());
             return;
         }
 
@@ -80,10 +80,10 @@ public class TimeCapsuleEventListener {
                     .build();
 
             timeCapsuleRepository.save(capsule);
-            log.info("Zaman kapsülü oluşturuldu: userId={}, title='{}', unlockAt={}",
-                    event.userId(), title, capsule.getUnlockAt());
+            log.info("Time capsule created: userId={}, capsuleId={}, unlockAt={}",
+                    event.userId(), capsule.getId(), capsule.getUnlockAt());
         } catch (Exception e) {
-            log.error("Zaman kapsülü oluşturulamadı: userId={}, hata={}", event.userId(), e.getMessage(), e);
+            log.error("Time capsule creation failed: userId={}", event.userId(), e);
         }
     }
 }

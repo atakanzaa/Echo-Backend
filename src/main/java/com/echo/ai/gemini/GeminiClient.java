@@ -172,9 +172,9 @@ public class GeminiClient {
      */
     @SuppressWarnings("unchecked")
     public String extractText(Map<?, ?> body) {
-        List<?> candidates = (List<?>) body.get("candidates");
+        List<?> candidates = body == null ? null : (List<?>) body.get("candidates");
         if (candidates == null || candidates.isEmpty()) {
-            throw new RuntimeException("Gemini returned empty candidates: " + body);
+            throw new RuntimeException("Gemini returned no candidates");
         }
         Map<?, ?> candidate  = (Map<?, ?>) candidates.get(0);
         Object finishReason  = candidate.get("finishReason");

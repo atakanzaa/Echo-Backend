@@ -28,8 +28,8 @@ public class UserMemoryService {
     }
 
     /**
-     * Her synthesis sonrası çağrılır — kullanıcı profilini AI çıktısından günceller.
-     * Mevcut profil üzerine yazar (silmez, geliştirir).
+     * Called after each synthesis — refreshes the user profile from AI output.
+     * Merges over the existing profile (does not reset it).
      */
     @Transactional
     public void updateFromSynthesis(UUID userId, AISynthesisResponse synthesis) {

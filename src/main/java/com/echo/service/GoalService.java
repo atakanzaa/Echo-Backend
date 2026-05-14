@@ -92,7 +92,7 @@ public class GoalService {
         return GoalResponse.from(saved);
     }
 
-    /** Hedefi tamamlandı olarak işaretle */
+    /** Mark a goal as completed. */
     @Transactional
     public GoalResponse completeGoal(UUID userId, UUID goalId) {
         return completeGoalInternal(userId, goalId, GoalCompletionType.MANUAL, "MANUAL", null);
@@ -103,7 +103,7 @@ public class GoalService {
         return completeGoalInternal(userId, goalId, GoalCompletionType.AI, sourceType, sourceRefId);
     }
 
-    /** Hedefi tamamlanmadı olarak işaretle */
+    /** Mark a goal as not completed. */
     @Transactional
     public GoalResponse markNotCompleted(UUID userId, UUID goalId) {
         Goal goal = getGoal(userId, goalId);

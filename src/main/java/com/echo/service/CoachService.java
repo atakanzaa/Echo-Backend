@@ -163,9 +163,17 @@ public class CoachService {
             ));
             return response.content();
         } catch (Exception e) {
-            log.warn("Welcome message generation failed, using fallback: {}", e.getMessage());
-            String name = (displayName != null && !displayName.isBlank()) ? displayName : "Hello";
-            return name + ", how are you feeling today? I'm here to talk.";
+            log.warn("Welcome message generation failed, using fallback: userId={} error={}", userId, e.getMessage());
+            String name = (displayName != null && !displayName.isBlank()) ? displayName : null;
+            boolean turkish = "tr".equalsIgnoreCase(language);
+            if (turkish) {
+                return name != null
+                        ? "Merhaba " + name + ", bugün kendini nasıl hissediyorsun?"
+                        : "Merhaba, bugün kendini nasıl hissediyorsun?";
+            }
+            return name != null
+                    ? "Hi " + name + ", how are you feeling today? I'm here to talk."
+                    : "Hi, how are you feeling today? I'm here to talk.";
         }
     }
 

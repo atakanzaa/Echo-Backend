@@ -27,10 +27,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * AI Synthesis ara katmanı.
- * Summary, Insights ve Achievements servisleri bu servisi kullanır — doğrudan provider çağırmaz.
- * Caffeine cache ile aynı veri için tekrarlanan AI çağrılarını önler.
- * Her synthesis sonrası UserMemoryService üzerinden kullanıcı profili güncellenir (adaptive learning).
+ * AI synthesis facade.
+ * Summary, Insights, and Achievements services delegate here instead of calling providers directly.
+ * Caffeine cache prevents repeated AI calls for the same data set.
+ * After each synthesis the user profile is refreshed via UserMemoryService (adaptive learning).
  */
 @Slf4j
 @Service

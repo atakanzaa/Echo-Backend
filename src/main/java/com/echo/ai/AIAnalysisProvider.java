@@ -3,10 +3,10 @@ package com.echo.ai;
 public interface AIAnalysisProvider {
 
     /**
-     * Transkripti analiz eder, yapılandırılmış sonuç döner.
+     * Analyzes the transcript and returns a structured result.
      *
-     * @param request Transkript + kullanıcı bağlamı
-     * @return Analiz sonucu
+     * @param request transcript plus user context
+     * @return analysis result
      */
     AIAnalysisResponse analyze(AIAnalysisRequest request);
 

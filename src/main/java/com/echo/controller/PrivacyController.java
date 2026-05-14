@@ -17,16 +17,16 @@ public class PrivacyController {
 
     private final ConsentService consentService;
 
-    /** Kullanıcının mevcut onay durumunu döner */
+    /** Returns the user's current consent state. */
     @GetMapping("/consent")
     public ResponseEntity<ConsentStatusResponse> getConsent(@AuthenticationPrincipal UserPrincipal p) {
         return ResponseEntity.ok(consentService.getConsent(p.getId()));
     }
 
     /**
-     * Onay güncelleme — KVKK Madde 7: rıza her zaman geri alınabilir.
-     * aiTrainingConsent: true/false — AI eğitiminde veri kullanımı (varsayılan: false)
-     * kvkkExplicitConsent: true/false — KVKK açık rıza
+     * Update consent — KVKK Article 7: consent may be withdrawn at any time.
+     * aiTrainingConsent: opt-in for AI training data use (default: false).
+     * kvkkExplicitConsent: explicit KVKK consent flag.
      */
     @PutMapping("/consent")
     public ResponseEntity<ConsentStatusResponse> updateConsent(
@@ -39,8 +39,8 @@ public class PrivacyController {
     }
 
     /**
-     * Hesap silme talebi — KVKK Madde 11.
-     * 30 gün sonra scheduled job tüm kişisel verileri siler.
+     * Account deletion request — KVKK Article 11.
+     * A scheduled job purges all personal data 30 days later.
      */
     @PostMapping("/delete-account")
     public ResponseEntity<Void> requestAccountDeletion(@AuthenticationPrincipal UserPrincipal p) {
