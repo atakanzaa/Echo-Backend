@@ -190,7 +190,7 @@ public class JournalService {
         return journalEntryRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
                 .map(entry -> {
                     AnalysisResult analysis = analysisResultRepository.findByJournalEntryId(entry.getId()).orElse(null);
-                    log.info("Idempotent journal request resolved to existing entry: entryId={}", entry.getId());
+                    log.debug("Idempotent journal request resolved to existing entry: entryId={}", entry.getId());
                     return JournalEntryResponse.from(entry, analysis);
                 });
     }

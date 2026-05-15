@@ -54,7 +54,7 @@ public class ResendWebhookService {
         verifyRequest(payload, messageId, timestamp, signature, webhookSecret);
 
         if (resendWebhookEventRepository.existsByWebhookMessageId(messageId)) {
-            log.info("Resend webhook ignored as duplicate: messageId={}", messageId);
+            log.debug("Resend webhook ignored as duplicate: messageId={}", messageId);
             return;
         }
 
@@ -80,7 +80,7 @@ public class ResendWebhookService {
             }
         }
 
-        log.info("Resend webhook processed: messageId={}, eventType={}, recipients={}",
+        log.debug("Resend webhook processed: messageId={}, eventType={}, recipients={}",
                 messageId, eventType, recipients.size());
     }
 
@@ -167,8 +167,8 @@ public class ResendWebhookService {
             user.setEmailSuppressedReason(reason);
             user.setEmailSuppressedAt(OffsetDateTime.now());
             userRepository.save(user);
-            log.warn("User email suppressed after Resend webhook: userId={}, email={}, reason={}",
-                    user.getId(), user.getEmail(), reason);
+            log.warn("User email suppressed after Resend webhook: userId={}, reason={}",
+                    user.getId(), reason);
         });
     }
 
