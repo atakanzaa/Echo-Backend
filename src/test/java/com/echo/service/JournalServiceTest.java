@@ -181,6 +181,8 @@ class JournalServiceTest {
     @Test
     void createEntry_throwsWhenQuotaIsExceeded() {
         UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId))
+                .willReturn(Optional.of(User.builder().id(userId).build()));
         given(entitlementService.consumeQuota(userId, com.echo.domain.subscription.FeatureKey.JOURNAL_ENTRIES))
                 .willReturn(false);
 

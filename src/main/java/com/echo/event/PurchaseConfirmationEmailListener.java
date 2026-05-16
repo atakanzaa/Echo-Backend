@@ -20,19 +20,24 @@ public class PurchaseConfirmationEmailListener {
     @Async("journalProcessingExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPurchaseConfirmed(PurchaseConfirmedEvent event) {
-        resendEmailService.send(
-                event.email(),
-                emailTemplateService.purchaseConfirmationSubject(event.language()),
-                emailTemplateService.purchaseConfirmationHtml(
-                        event.productId(),
-                        event.language(),
-                        event.activatedAt()
-                ),
-                emailTemplateService.purchaseConfirmationText(
-                        event.productId(),
-                        event.language(),
-                        event.activatedAt()
-                )
-        );
+        try {
+            resendEmailService.send(
+                    event.email(),
+                    emailTemplateService.purchaseConfirmationSubject(event.language()),
+                    emailTemplateService.purchaseConfirmationHtml(
+                            event.productId(),
+                            event.language(),
+                            event.activatedAt()
+                    ),
+                    emailTemplateService.purchaseConfirmationText(
+                            event.productId(),
+                            event.language(),
+                            event.activatedAt()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("Purchase confirmation email failed: userId={}, productId={}",
+                    event.userId(), event.productId(), e);
+        }
     }
 }

@@ -54,7 +54,7 @@ public class SecurityConfig {
                     "/api/v1/auth/logout",
                     "/api/v1/auth/forgot-password",
                     "/api/v1/auth/reset-password").permitAll()
-                .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/uploads/images/**").permitAll()
                 .requestMatchers("/api/v1/health", "/actuator/health/**").permitAll()
                 .requestMatchers("/actuator/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/app/config").permitAll()

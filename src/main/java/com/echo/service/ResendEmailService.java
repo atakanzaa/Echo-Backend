@@ -73,14 +73,14 @@ public class ResendEmailService {
 
         Map<?, ?> response = restTemplate.postForObject(RESEND_URL, new HttpEntity<>(payload, headers), Map.class);
         Object emailId = response == null ? null : response.get("id");
-        log.info("Email delivered via Resend: to={}, subject={}, emailId={}", to, subject, emailId);
+        log.info("Email delivered via Resend: subject={}, emailId={}", subject, emailId);
         return true;
     }
 
     @SuppressWarnings("unused")
     public boolean sendFallback(String to, String subject, String htmlBody, String textBody, Throwable throwable) {
-        log.error("Email delivery fallback triggered: to={}, subject={}, error={}",
-                to, subject, throwable.getMessage());
+        log.error("Email delivery fallback triggered: subject={}, error={}",
+                subject, throwable.getMessage());
         return false;
     }
 

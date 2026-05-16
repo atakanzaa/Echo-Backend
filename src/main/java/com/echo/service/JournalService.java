@@ -58,15 +58,15 @@ public class JournalService {
             return existing.get();
         }
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         if (!entitlementService.consumeQuota(userId, FeatureKey.JOURNAL_ENTRIES)) {
             throw new QuotaExceededException(
                     "JOURNAL_LIMIT",
                     "Monthly journal entry limit reached. Upgrade to Premium for unlimited journaling."
             );
         }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         JournalEntry entry = JournalEntry.builder()
                 .user(user)
@@ -103,15 +103,15 @@ public class JournalService {
             return existing.get();
         }
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         if (!entitlementService.consumeQuota(userId, FeatureKey.JOURNAL_ENTRIES)) {
             throw new QuotaExceededException(
                     "JOURNAL_LIMIT",
                     "Monthly journal entry limit reached. Upgrade to Premium for unlimited journaling."
             );
         }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         JournalEntry entry = JournalEntry.builder()
                 .user(user)

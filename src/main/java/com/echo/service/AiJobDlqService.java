@@ -50,13 +50,13 @@ public class AiJobDlqService {
     private static final int CLAIM_TTL_MINUTES = 10;
 
     @Transactional
-    public void enqueue(UUID entryId, String jobType, String errorCode, String payload) {
+    public void enqueue(UUID entryId, String jobType, String errorCode, String errorMessage, String payload) {
         OffsetDateTime now = OffsetDateTime.now();
         AiJobDlq dlq = AiJobDlq.builder()
                 .journalEntryId(entryId)
                 .jobType(jobType)
                 .errorCode(errorCode)
-                .errorMessage(errorCode)
+                .errorMessage(errorMessage != null ? errorMessage : errorCode)
                 .payload(payload)
                 .attemptCount(1)
                 .firstFailedAt(now)

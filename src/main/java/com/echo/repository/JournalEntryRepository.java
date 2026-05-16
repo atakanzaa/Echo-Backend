@@ -70,13 +70,6 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
     long countTotalWordsByUserId(@Param("userId") UUID userId);
 
     @Query(value = """
-           SELECT COALESCE(SUM(array_length(regexp_split_to_array(transcript, '\\s+'), 1)), 0)
-           FROM journal_entries
-           WHERE user_id = :userId AND transcript IS NOT NULL AND transcript != ''
-           """, nativeQuery = true)
-    long countTotalWordsForStats(@Param("userId") UUID userId);
-
-    @Query(value = """
            SELECT COUNT(*)
            FROM journal_entries
            WHERE user_id = :userId AND transcript IS NOT NULL AND transcript != ''

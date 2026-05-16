@@ -116,7 +116,7 @@ public class GeminiAnalysisProvider implements AIAnalysisProvider {
     public GoalMatchDecision verifyGoalMatch(GoalMatchVerificationRequest request) {
         String model = props.getAi().getGemini().getAnalysisModel();
         String apiKey = props.getAi().getGemini().getApiKey();
-        String url = String.format(GEMINI_URL, model, apiKey);
+        String url = String.format(GEMINI_URL, model);
 
         Map<String, Object> requestBody = Map.of(
                 "system_instruction", Map.of(

@@ -88,7 +88,7 @@ public class UserStatsService {
         BigDecimal moodTrend = computeMoodTrendFromResults(recentResults, now);
 
         // Word count: DB-side aggregation instead of loading all transcripts into memory
-        long totalWords = journalEntryRepo.countTotalWordsForStats(userId);
+        long totalWords = journalEntryRepo.countTotalWordsByUserId(userId);
         long entryCount = journalEntryRepo.countEntriesWithTranscript(userId);
         int avgLength = entryCount == 0 ? 0 : (int) (totalWords / entryCount);
 
@@ -186,7 +186,7 @@ public class UserStatsService {
 
     private List<String> topN(List<String> items, int n) {
         return items.stream()
-                .collect(Collectors.groupingBy(s -> s.toLowerCase(), Collectors.counting()))
+                .collect(Collectors.groupingBy(s -> s.toLowerCase(Locale.ROOT), Collectors.counting()))
                 .entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(n)

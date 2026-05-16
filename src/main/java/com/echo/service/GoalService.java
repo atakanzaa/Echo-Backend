@@ -88,7 +88,7 @@ public class GoalService {
                 .build();
 
         Goal saved = goalRepository.save(goal);
-        log.info("Manual goal created: goalId={}, userId={}", saved.getId(), userId);
+        log.debug("Manual goal created: goalId={}, userId={}", saved.getId(), userId);
         return GoalResponse.from(saved);
     }
 
@@ -117,7 +117,7 @@ public class GoalService {
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
 
-        log.info("Goal marked not completed: goalId={}, userId={}", goalId, userId);
+        log.debug("Goal marked not completed: goalId={}, userId={}", goalId, userId);
         return GoalResponse.from(goal);
     }
 
@@ -137,7 +137,7 @@ public class GoalService {
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
 
-        log.info("Goal soft-deleted: goalId={}, userId={}", goalId, userId);
+        log.debug("Goal soft-deleted: goalId={}, userId={}", goalId, userId);
     }
 
     private GoalResponse completeGoalInternal(
@@ -158,7 +158,7 @@ public class GoalService {
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
 
-        log.info("Goal completed: goalId={}, userId={}, sourceType={}", goalId, userId, sourceType);
+        log.debug("Goal completed: goalId={}, userId={}, sourceType={}", goalId, userId, sourceType);
         return GoalResponse.from(goal);
     }
 

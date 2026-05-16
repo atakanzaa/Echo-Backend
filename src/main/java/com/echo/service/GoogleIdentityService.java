@@ -26,6 +26,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -72,7 +73,7 @@ public class GoogleIdentityService {
             String name    = claims.getStringClaim("name");
             String subject = claims.getSubject();
 
-            return new GoogleIdentity(subject, email != null ? email.trim().toLowerCase() : "", name != null ? name.trim() : "");
+            return new GoogleIdentity(subject, email != null ? email.trim().toLowerCase(Locale.ROOT) : "", name != null ? name.trim() : "");
 
         } catch (UnauthorizedException | ServiceUnavailableException ex) {
             throw ex;

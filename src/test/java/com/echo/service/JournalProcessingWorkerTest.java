@@ -67,7 +67,7 @@ class JournalProcessingWorkerTest {
 
         verify(entryUpdater).updateStatus(entryId, EntryStatus.TRANSCRIBING);
         verify(entryUpdater).markFailed(entryId, "Ses kaydı çözümlenemedi.");
-        verify(aiJobDlqService, never()).enqueue(any(), any(), any(), any());
+        verify(aiJobDlqService, never()).enqueue(any(), any(), any(), any(), any());
         verify(router, never()).analysis();
     }
 
@@ -92,6 +92,6 @@ class JournalProcessingWorkerTest {
         verify(entryUpdater).setTranscript(entryId, "Bugun kendimi iyi hissediyorum.");
         verify(entryUpdater).updateStatus(entryId, EntryStatus.ANALYZING);
         verify(entryUpdater).markFailed(eq(entryId), contains("analiz"));
-        verify(aiJobDlqService).enqueue(eq(entryId), eq("ANALYSIS"), eq("TIMEOUT"), any());
+        verify(aiJobDlqService).enqueue(eq(entryId), eq("ANALYSIS"), eq("TIMEOUT"), any(), any());
     }
 }
