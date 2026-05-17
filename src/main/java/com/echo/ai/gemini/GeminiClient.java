@@ -147,7 +147,9 @@ public class GeminiClient {
                 : null;
         if (retryAfterHeaders != null && !retryAfterHeaders.isEmpty()) {
             try {
-                return Long.parseLong(retryAfterHeaders.get(0)) * 1000L;
+                long waitMs = Long.parseLong(retryAfterHeaders.get(0)) * 1000L;
+                // Clamp to MAX_DELAY_MS so a hostile/oversized Retry-After cannot park the thread.
+                return Math.max(0L, Math.min(waitMs, MAX_DELAY_MS));
             } catch (NumberFormatException ignored) {}
         }
         return jitteredBackoff(attempt);
@@ -174,7 +176,7 @@ public class GeminiClient {
     public String extractText(Map<?, ?> body) {
         List<?> candidates = (List<?>) body.get("candidates");
         if (candidates == null || candidates.isEmpty()) {
-            throw new RuntimeException("Gemini returned empty candidates: " + body);
+            throw new RuntimeException("Gemini returned empty candidates, promptFeedback=" + body.get("promptFeedback"));
         }
         Map<?, ?> candidate  = (Map<?, ?>) candidates.get(0);
         Object finishReason  = candidate.get("finishReason");

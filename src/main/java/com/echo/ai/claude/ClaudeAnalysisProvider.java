@@ -173,7 +173,7 @@ public class ClaudeAnalysisProvider implements AIAnalysisProvider {
     private String extractClaudeContent(Map<?, ?> body) {
         List<?> content = (List<?>) body.get("content");
         if (content == null || content.isEmpty()) {
-            throw new RuntimeException("Claude returned empty content: " + body);
+            throw new RuntimeException("Claude returned empty content, stop_reason=" + body.get("stop_reason"));
         }
         Map<?, ?> block = (Map<?, ?>) content.get(0);
         return (String) block.get("text");

@@ -99,11 +99,6 @@ public class EntitlementService {
     }
 
     @Transactional(readOnly = true)
-    public boolean consumeSessionQuota(UUID userId, UUID sessionId, FeatureKey feature) {
-        return hasSessionQuota(userId, sessionId, feature);
-    }
-
-    @Transactional(readOnly = true)
     public boolean hasSessionQuota(UUID userId, UUID sessionId, FeatureKey feature) {
         int limit = getLimit(userId, feature);
         if (limit == -1) {
