@@ -80,7 +80,7 @@ public class OpenAITranscriptionProvider implements AITranscriptionProvider {
         if (ex instanceof TranscriptionFailedException transcriptionFailedException) {
             throw transcriptionFailedException;
         }
-        log.error("OpenAI transcription devre dışı (circuit open): {}", ex.getMessage());
+        log.error("OpenAI transcription circuit open: {}", ex.getMessage());
         throw new ServiceUnavailableException(
                 "Ses tanıma servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
     }

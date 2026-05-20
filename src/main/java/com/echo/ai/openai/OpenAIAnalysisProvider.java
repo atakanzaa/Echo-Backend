@@ -2,6 +2,7 @@ package com.echo.ai.openai;
 
 import com.echo.ai.*;
 import com.echo.config.AppProperties;
+import com.echo.exception.EchoException;
 import com.echo.exception.ServiceUnavailableException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -146,7 +147,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
     private String extractContent(Map<?, ?> body) {
         List<?> choices = (List<?>) body.get("choices");
         if (choices == null || choices.isEmpty()) {
-            throw new RuntimeException("OpenAI returned empty choices: " + body);
+            throw new EchoException("OpenAI returned empty choices");
         }
         Map<?, ?> choice  = (Map<?, ?>) choices.get(0);
         Map<?, ?> message = (Map<?, ?>) choice.get("message");
@@ -212,7 +213,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
                     json
             );
         } catch (Exception e) {
-            throw new RuntimeException("OpenAI analysis response could not be parsed", e);
+            throw new EchoException("OpenAI analysis response could not be parsed", e);
         }
     }
 
@@ -230,7 +231,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
             return objectMapper.convertValue(arrayNode,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, type));
         } catch (Exception e) {
-            log.warn("'{}' alanı parse edilemedi, boş liste döndürülüyor: {}", field, e.getMessage());
+            log.warn("Could not parse '{}' field, returning empty list: {}", field, e.getMessage());
             return List.of();
         }
     }
@@ -255,7 +256,7 @@ public class OpenAIAnalysisProvider implements AIAnalysisProvider {
                     node.path("reason").asText("")
             );
         } catch (Exception e) {
-            throw new RuntimeException("OpenAI goal match response could not be parsed", e);
+            throw new EchoException("OpenAI goal match response could not be parsed", e);
         }
     }
 

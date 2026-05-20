@@ -3,6 +3,7 @@ package com.echo.service;
 import com.echo.config.AppProperties;
 import com.echo.domain.user.User;
 import com.echo.repository.UserRepository;
+import com.echo.util.LogMask;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,16 +43,16 @@ public class ResendEmailService {
         }
         User targetUser = userRepository.findByEmail(to.trim().toLowerCase(Locale.ROOT)).orElse(null);
         if (targetUser != null && targetUser.isEmailSuppressed()) {
-            log.warn("Email skipped because recipient is suppressed: userId={}, email={}, reason={}",
-                    targetUser.getId(), targetUser.getEmail(), targetUser.getEmailSuppressedReason());
+            log.warn("Email skipped because recipient is suppressed: userId={}, reason={}",
+                    targetUser.getId(), targetUser.getEmailSuppressedReason());
             return false;
         }
         if (!resend.isEnabled()) {
-            log.info("Resend disabled, simulating email delivery: to={}, subject={}", to, subject);
+            log.info("Resend disabled, simulating email delivery: recipient={}, subject={}", LogMask.email(to), subject);
             return true;
         }
         if (!StringUtils.hasText(resend.getApiKey())) {
-            log.warn("Resend API key missing, email skipped: to={}, subject={}", to, subject);
+            log.warn("Resend API key missing, email skipped: recipient={}, subject={}", LogMask.email(to), subject);
             return false;
         }
 
@@ -73,14 +74,14 @@ public class ResendEmailService {
 
         Map<?, ?> response = restTemplate.postForObject(RESEND_URL, new HttpEntity<>(payload, headers), Map.class);
         Object emailId = response == null ? null : response.get("id");
-        log.info("Email delivered via Resend: to={}, subject={}, emailId={}", to, subject, emailId);
+        log.info("Email delivered via Resend: recipient={}, subject={}, emailId={}", LogMask.email(to), subject, emailId);
         return true;
     }
 
     @SuppressWarnings("unused")
     public boolean sendFallback(String to, String subject, String htmlBody, String textBody, Throwable throwable) {
-        log.error("Email delivery fallback triggered: to={}, subject={}, error={}",
-                to, subject, throwable.getMessage());
+        log.error("Email delivery fallback triggered: recipient={}, subject={}, error={}",
+                LogMask.email(to), subject, throwable.getMessage());
         return false;
     }
 

@@ -103,7 +103,6 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
         );
 
         String raw = extractContent(response.getBody());
-        log.debug("OpenAI synthesis yanıtı alındı, parse ediliyor");
         return parseResponse(raw);
     }
 
@@ -112,7 +111,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
-        log.error("OpenAI synthesis devre dışı (circuit open): {}", ex.getMessage());
+        log.error("OpenAI synthesis circuit open: {}", ex.getMessage());
         throw new ServiceUnavailableException(
                 "AI sentez servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
     }

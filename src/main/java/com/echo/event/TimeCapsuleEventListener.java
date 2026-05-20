@@ -42,7 +42,7 @@ public class TimeCapsuleEventListener {
 
         User user = userRepository.findById(event.userId()).orElse(null);
         if (user == null) {
-            log.warn("Kullanıcı bulunamadı, zaman kapsülü oluşturulamadı: userId={}", event.userId());
+            log.warn("User not found, time capsule not created: userId={}", event.userId());
             return;
         }
 
@@ -80,10 +80,10 @@ public class TimeCapsuleEventListener {
                     .build();
 
             timeCapsuleRepository.save(capsule);
-            log.info("Zaman kapsülü oluşturuldu: userId={}, title='{}', unlockAt={}",
-                    event.userId(), title, capsule.getUnlockAt());
+            log.info("Time capsule created: userId={}, unlockAt={}",
+                    event.userId(), capsule.getUnlockAt());
         } catch (Exception e) {
-            log.error("Zaman kapsülü oluşturulamadı: userId={}, hata={}", event.userId(), e.getMessage(), e);
+            log.error("Time capsule creation failed: userId={}", event.userId(), e);
         }
     }
 }

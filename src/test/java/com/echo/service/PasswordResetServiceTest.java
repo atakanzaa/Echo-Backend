@@ -1,6 +1,5 @@
 package com.echo.service;
 
-import com.echo.config.AppProperties;
 import com.echo.domain.token.PasswordResetToken;
 import com.echo.domain.user.User;
 import com.echo.repository.PasswordResetTokenRepository;
@@ -12,7 +11,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
@@ -45,10 +43,6 @@ class PasswordResetServiceTest {
     ResendEmailService resendEmailService;
     @Mock
     EmailTemplateService emailTemplateService;
-    @Mock
-    Environment environment;
-    @Mock
-    AppProperties appProperties;
 
     @InjectMocks
     PasswordResetService passwordResetService;
@@ -62,7 +56,6 @@ class PasswordResetServiceTest {
         given(emailTemplateService.passwordResetSubject("en")).willReturn("subject");
         given(emailTemplateService.passwordResetHtml(anyString(), eq("en"))).willReturn("html");
         given(emailTemplateService.passwordResetText(anyString(), eq("en"))).willReturn("text");
-        given(appProperties.getResend()).willReturn(new AppProperties.Resend());
         given(resendEmailService.send(eq(user.getEmail()), eq("subject"), eq("html"), eq("text"))).willReturn(false);
 
         passwordResetService.requestReset(user.getEmail(), "127.0.0.1");

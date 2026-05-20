@@ -1,6 +1,5 @@
 package com.echo.service;
 
-import com.echo.config.AppProperties;
 import com.echo.domain.token.PasswordResetToken;
 import com.echo.domain.user.User;
 import com.echo.repository.PasswordResetTokenRepository;
@@ -9,7 +8,6 @@ import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,8 +37,6 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final ResendEmailService resendEmailService;
     private final EmailTemplateService emailTemplateService;
-    private final Environment environment;
-    private final AppProperties appProperties;
 
     @Transactional
     public void requestReset(String email, String clientIp) {
@@ -71,9 +67,6 @@ public class PasswordResetService {
                 emailTemplateService.passwordResetHtml(code, user.getPreferredLanguage()),
                 emailTemplateService.passwordResetText(code, user.getPreferredLanguage())
         );
-        if (!appProperties.getResend().isEnabled() && environment.matchesProfiles("dev", "test")) {
-            log.info("Password reset OTP generated for local development: email={}, code={}", user.getEmail(), code);
-        }
         if (!delivered) {
             passwordResetTokenRepository.delete(token);
             log.warn("Password reset token discarded because email delivery failed: userId={}", user.getId());
