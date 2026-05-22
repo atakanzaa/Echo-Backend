@@ -20,7 +20,6 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     List<JournalEntry> findByUserIdAndEntryDateOrderByRecordedAtDesc(UUID userId, LocalDate date);
 
-    // replaces hardcoded findTop7 with dynamic limit via Pageable
     List<JournalEntry> findByUserIdOrderByRecordedAtDesc(UUID userId, Pageable pageable);
 
     @Query(value = """
@@ -68,13 +67,6 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
            WHERE user_id = :userId AND transcript IS NOT NULL AND transcript != ''
            """, nativeQuery = true)
     long countTotalWordsByUserId(@Param("userId") UUID userId);
-
-    @Query(value = """
-           SELECT COALESCE(SUM(array_length(regexp_split_to_array(transcript, '\\s+'), 1)), 0)
-           FROM journal_entries
-           WHERE user_id = :userId AND transcript IS NOT NULL AND transcript != ''
-           """, nativeQuery = true)
-    long countTotalWordsForStats(@Param("userId") UUID userId);
 
     @Query(value = """
            SELECT COUNT(*)

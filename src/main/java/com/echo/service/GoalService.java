@@ -16,7 +16,6 @@ import com.echo.repository.GoalRepository;
 import com.echo.repository.GoalSuggestionRepository;
 import com.echo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GoalService {
@@ -88,7 +86,6 @@ public class GoalService {
                 .build();
 
         Goal saved = goalRepository.save(goal);
-        log.info("Manual goal created: goalId={}, userId={}", saved.getId(), userId);
         return GoalResponse.from(saved);
     }
 
@@ -117,7 +114,6 @@ public class GoalService {
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
 
-        log.info("Goal marked not completed: goalId={}, userId={}", goalId, userId);
         return GoalResponse.from(goal);
     }
 
@@ -136,8 +132,6 @@ public class GoalService {
         goal.setCompletedSourceRefId(null);
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
-
-        log.info("Goal soft-deleted: goalId={}, userId={}", goalId, userId);
     }
 
     private GoalResponse completeGoalInternal(
@@ -158,7 +152,6 @@ public class GoalService {
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
 
-        log.info("Goal completed: goalId={}, userId={}, sourceType={}", goalId, userId, sourceType);
         return GoalResponse.from(goal);
     }
 

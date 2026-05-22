@@ -65,7 +65,6 @@ public class OpenAITranscriptionProvider implements AITranscriptionProvider {
             );
         }
 
-        log.debug("Whisper transcription tamamlandı: {} bytes", request.audioBytes().length);
         return new AITranscriptionResult(
                 transcript.strip(),
                 "openai",

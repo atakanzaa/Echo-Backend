@@ -88,7 +88,7 @@ public class UserStatsService {
         BigDecimal moodTrend = computeMoodTrendFromResults(recentResults, now);
 
         // Word count: DB-side aggregation instead of loading all transcripts into memory
-        long totalWords = journalEntryRepo.countTotalWordsForStats(userId);
+        long totalWords = journalEntryRepo.countTotalWordsByUserId(userId);
         long entryCount = journalEntryRepo.countEntriesWithTranscript(userId);
         int avgLength = entryCount == 0 ? 0 : (int) (totalWords / entryCount);
 

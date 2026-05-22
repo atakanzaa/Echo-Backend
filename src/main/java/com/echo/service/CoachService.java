@@ -289,7 +289,6 @@ public class CoachService {
             ));
         } catch (RuntimeException ex) {
             entitlementService.refundQuota(userId, FeatureKey.COACH_MESSAGES_TOTAL);
-            log.warn("Coach AI call failed: sessionId={} userId={} error={}", sessionId, userId, ex.getMessage());
             throw ex;
         }
     }

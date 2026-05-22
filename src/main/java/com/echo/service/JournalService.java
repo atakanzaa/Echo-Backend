@@ -156,7 +156,6 @@ public class JournalService {
         return mapWithAnalysis(entries);
     }
 
-    // uses Pageable instead of hardcoded findTop7
     @Transactional(readOnly = true)
     public List<JournalEntryResponse> getRecent(UUID userId, int limit) {
         List<JournalEntry> entries = journalEntryRepository
