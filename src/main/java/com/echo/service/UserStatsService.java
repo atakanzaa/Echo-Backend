@@ -113,7 +113,7 @@ public class UserStatsService {
         // Check 1, 2, and 3 years ago
         for (int yearsAgo = 1; yearsAgo <= 3; yearsAgo++) {
             LocalDate pastDate = today.minusYears(yearsAgo);
-            analysisResultRepo.findByUserIdAndEntryDate(userId, pastDate)
+            analysisResultRepo.findByUserIdAndEntryDate(userId, pastDate).stream().findFirst()
                     .ifPresent(ar -> entries.add(new OnThisDayResponse.OnThisDayEntry(
                             ar.getJournalEntry().getId().toString(),
                             ar.getEntryDate(),

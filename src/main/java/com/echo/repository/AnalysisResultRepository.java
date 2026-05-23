@@ -17,8 +17,10 @@ public interface AnalysisResultRepository extends JpaRepository<AnalysisResult, 
     List<AnalysisResult> findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
             UUID userId, LocalDate startDate, LocalDate endDate);
 
-    @Query("SELECT ar FROM AnalysisResult ar WHERE ar.user.id = :userId AND ar.entryDate = :date")
-    Optional<AnalysisResult> findByUserIdAndEntryDate(UUID userId, LocalDate date);
+    // A user may have multiple entries on the same date, so this returns the
+    // most recent one rather than a single Optional (which throws on >1 row).
+    @Query("SELECT ar FROM AnalysisResult ar WHERE ar.user.id = :userId AND ar.entryDate = :date ORDER BY ar.createdAt DESC")
+    List<AnalysisResult> findByUserIdAndEntryDate(UUID userId, LocalDate date);
 
     @Query("""
            SELECT ar.entryDate FROM AnalysisResult ar

@@ -11,26 +11,17 @@ import java.util.UUID;
 
 public interface AiJobDlqRepository extends JpaRepository<AiJobDlq, UUID> {
 
-    @Query("""
-           SELECT j
-           FROM AiJobDlq j
-           WHERE j.resolvedAt IS NULL
-             AND j.nextRetryAt <= :now
-             AND j.attemptCount < 5
-           ORDER BY j.nextRetryAt ASC
-           """)
-    List<AiJobDlq> findRetryableJobs(@Param("now") OffsetDateTime now);
-
     @Query(value = """
            SELECT *
            FROM ai_job_dlq
            WHERE resolved_at IS NULL
              AND next_retry_at <= :now
-             AND attempt_count < 5
+             AND attempt_count < :maxAttempts
            ORDER BY next_retry_at ASC
            LIMIT :limit
            FOR UPDATE SKIP LOCKED
            """, nativeQuery = true)
     List<AiJobDlq> findRetryableJobsForUpdate(@Param("now") OffsetDateTime now,
+                                              @Param("maxAttempts") int maxAttempts,
                                               @Param("limit") int limit);
 }
