@@ -20,7 +20,6 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     List<JournalEntry> findByUserIdAndEntryDateOrderByRecordedAtDesc(UUID userId, LocalDate date);
 
-    // replaces hardcoded findTop7 with dynamic limit via Pageable
     List<JournalEntry> findByUserIdOrderByRecordedAtDesc(UUID userId, Pageable pageable);
 
     @Query(value = """

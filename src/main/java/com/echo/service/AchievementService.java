@@ -224,7 +224,7 @@ public class AchievementService {
         try {
             return BadgeDefinition.valueOf(badgeKey.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid badge key: " + badgeKey);
+            throw new IllegalArgumentException("Invalid badge key: " + badgeKey, ex);
         }
     }
 

@@ -60,6 +60,10 @@ public class GoalIntegrationService {
     public static final String SOURCE_TYPE_JOURNAL = "JOURNAL";
     public static final String SOURCE_TYPE_COACH = "COACH";
 
+    private static final int CREATE_SUGGESTION_TTL_DAYS = 7;
+    private static final int COMPLETE_SUGGESTION_TTL_HOURS = 24;
+    private static final int REJECTED_SUGGESTION_LOOKBACK_DAYS = 7;
+
     private static final List<GoalStatus> OPEN_GOAL_STATUSES = GoalStatus.openStatuses();
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\b\\d+(?:[.,]\\d+)?\\b");
@@ -235,7 +239,7 @@ public class GoalIntegrationService {
         List<GoalSuggestion> recentRejected = goalSuggestionRepository.findByUserIdAndStatusAndCreatedAtAfterOrderByCreatedAtDesc(
                 user.getId(),
                 SUGGESTION_STATUS_REJECTED,
-                OffsetDateTime.now().minusDays(7)
+                OffsetDateTime.now().minusDays(REJECTED_SUGGESTION_LOOKBACK_DAYS)
         );
 
         List<AIGoal> filtered = aiGoals.stream()
@@ -281,7 +285,7 @@ public class GoalIntegrationService {
                     .confidence(decimal(goalConfidence(aiGoal)))
                     .dedupeKey(dedupeKey)
                     .status(SUGGESTION_STATUS_PENDING)
-                    .expiresAt(OffsetDateTime.now().plusDays(7))
+                    .expiresAt(OffsetDateTime.now().plusDays(CREATE_SUGGESTION_TTL_DAYS))
                     .build();
             goalSuggestionRepository.save(suggestion);
             remaining--;
@@ -400,7 +404,7 @@ public class GoalIntegrationService {
                 .confidence(decimal(confidence))
                 .dedupeKey(dedupeKey)
                 .status(SUGGESTION_STATUS_PENDING)
-                .expiresAt(OffsetDateTime.now().plusHours(24))
+                .expiresAt(OffsetDateTime.now().plusHours(COMPLETE_SUGGESTION_TTL_HOURS))
                 .build();
         goalSuggestionRepository.save(suggestion);
     }

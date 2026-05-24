@@ -80,8 +80,8 @@ public class TimeCapsuleEventListener {
                     .build();
 
             timeCapsuleRepository.save(capsule);
-            log.info("Zaman kapsülü oluşturuldu: userId={}, title='{}', unlockAt={}",
-                    event.userId(), title, capsule.getUnlockAt());
+            log.info("Zaman kapsülü oluşturuldu: userId={}, capsuleId={}, unlockAt={}",
+                    event.userId(), capsule.getId(), capsule.getUnlockAt());
         } catch (Exception e) {
             log.error("Zaman kapsülü oluşturulamadı: userId={}, hata={}", event.userId(), e.getMessage(), e);
         }

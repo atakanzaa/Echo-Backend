@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -155,24 +154,7 @@ public class AiJobDlqService {
         analysisResultRepository.save(result);
 
         eventPublisher.publishEvent(new JournalAnalysisCompletedEvent(user.getId(), entry.getId(), analysis));
-        updateUserMoodAverage(user.getId());
-    }
-
-    @Transactional
-    protected void updateUserMoodAverage(UUID userId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            List<AnalysisResult> results = analysisResultRepository
-                    .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
-                            userId, LocalDate.now().minusDays(30), LocalDate.now());
-            if (!results.isEmpty()) {
-                double avg = results.stream()
-                        .mapToDouble(r -> r.getMoodScore().doubleValue())
-                        .average()
-                        .orElse(0.0);
-                user.setMoodScoreAvg(BigDecimal.valueOf(avg));
-                userRepository.save(user);
-            }
-        });
+        entryUpdater.updateUserMoodAverage(user.getId());
     }
 
     @Transactional

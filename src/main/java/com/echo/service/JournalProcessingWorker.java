@@ -31,7 +31,7 @@ public class JournalProcessingWorker {
 
     @Async("journalProcessingExecutor")
     public void analyzeTranscriptAsync(UUID entryId, String transcript, UUID userId) {
-        log.info("Transcript analysis started: entryId={}", entryId);
+        log.debug("Transcript analysis started: entryId={}", entryId);
         try {
             UserDetails details = getUserDetails(userId);
             AIAnalysisResponse analysis = router.analysis()
@@ -39,7 +39,7 @@ public class JournalProcessingWorker {
             entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
-            log.info("Transcript analysis completed: entryId={}", entryId);
+            log.debug("Transcript analysis completed: entryId={}", entryId);
         } catch (Exception e) {
             log.error("Transcript analysis failed: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));
@@ -54,7 +54,7 @@ public class JournalProcessingWorker {
         long bytesPerSecond = request.durationSeconds() > 0
                 ? request.audioBytes().length / request.durationSeconds()
                 : request.audioBytes().length;
-        log.info("Async pipeline started: entryId={} bytes={} durationSeconds={} bytesPerSecond={} contentType={}",
+        log.debug("Async pipeline started: entryId={} bytes={} durationSeconds={} bytesPerSecond={} contentType={}",
                 entryId, request.audioBytes().length, request.durationSeconds(), bytesPerSecond, request.contentType());
 
         String transcript;
@@ -104,7 +104,7 @@ public class JournalProcessingWorker {
             entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
-            log.info("Async pipeline completed: entryId={}", entryId);
+            log.debug("Async pipeline completed: entryId={}", entryId);
         } catch (Exception e) {
             log.error("Analysis failed after successful transcription: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));

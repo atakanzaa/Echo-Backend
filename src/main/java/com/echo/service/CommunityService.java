@@ -92,15 +92,8 @@ public class CommunityService {
         String contentType = request.contentType() != null ? request.contentType() : "text";
         String badgeKey = normalizeBadgeKey(request.badgeKey());
 
-        log.info("createPost: imageFile={} size={} contentType={} badgeKey={}",
-                imageFile != null ? imageFile.getOriginalFilename() : "null",
-                imageFile != null ? imageFile.getSize() : 0,
-                imageFile != null ? imageFile.getContentType() : "null",
-                badgeKey);
-
         if (imageFile != null && !imageFile.isEmpty()) {
             imageUrl = storageService.uploadImage(imageFile);
-            log.info("createPost: image uploaded → {}", imageUrl);
             contentType = "image";
         }
 

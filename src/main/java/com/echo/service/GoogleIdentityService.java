@@ -127,7 +127,7 @@ public class GoogleIdentityService {
         } catch (ServiceUnavailableException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new ServiceUnavailableException("Google JWKS fetch failed: " + ex.getMessage());
+            throw new ServiceUnavailableException("Google JWKS fetch failed", ex);
         }
     }
 

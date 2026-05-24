@@ -20,12 +20,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
-// Extracted from JournalService to fix @Transactional self-invocation.
-// Spring AOP proxies do not intercept calls within the same bean,
-// so @Transactional on private/protected methods called from @Async was dead code.
+// Separate bean so @Transactional is honored under @Async: Spring AOP proxies
+// do not intercept same-bean calls, so these methods cannot live in the caller.
 @Component
 @RequiredArgsConstructor
 public class JournalEntryUpdater {
+
+    private static final int MOOD_AVERAGE_WINDOW_DAYS = 30;
 
     private final JournalEntryRepository journalEntryRepository;
     private final AnalysisResultRepository analysisResultRepository;
@@ -93,7 +94,7 @@ public class JournalEntryUpdater {
         userRepository.findById(userId).ifPresent(user -> {
             var results = analysisResultRepository
                     .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
-                            userId, LocalDate.now().minusDays(30), LocalDate.now());
+                            userId, LocalDate.now().minusDays(MOOD_AVERAGE_WINDOW_DAYS), LocalDate.now());
             if (!results.isEmpty()) {
                 double avg = results.stream()
                         .mapToDouble(r -> r.getMoodScore().doubleValue())

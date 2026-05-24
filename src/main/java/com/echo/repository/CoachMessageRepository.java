@@ -26,7 +26,6 @@ public interface CoachMessageRepository extends JpaRepository<CoachMessage, UUID
     // latest coach message, included in synthesis cache key
     Optional<CoachMessage> findFirstByUserIdOrderByCreatedAtDesc(UUID userId);
 
-    // bulk delete all messages for a session (avoids N+1 load-then-delete)
     @Modifying
     @Query("DELETE FROM CoachMessage m WHERE m.session.id = :sessionId")
     void deleteBySessionId(UUID sessionId);
