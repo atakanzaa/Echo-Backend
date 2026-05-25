@@ -143,10 +143,9 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
                     );
                 }
 
-                String preview = preview(transcript);
                 attemptNotes.add("mime=" + mimeType + " flags=" + rejectionFlags);
-                log.warn("Gemini transcription rejected: mimeType={} promptTokens={} candidateTokens={} flags={} preview={}",
-                        mimeType, promptTokenCount, candidateTokenCount, rejectionFlags, preview);
+                log.warn("Gemini transcription rejected: mimeType={} promptTokens={} candidateTokens={} flags={} transcriptChars={}",
+                        mimeType, promptTokenCount, candidateTokenCount, rejectionFlags, transcript.length());
             } catch (Exception e) {
                 lastError = e;
                 attemptNotes.add("mime=" + mimeType + " error=" + e.getClass().getSimpleName());
@@ -266,9 +265,5 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
 
     private int minimumExpectedPromptTokens(int durationSeconds) {
         return Math.max(MIN_PROMPT_TOKENS, (int) Math.ceil(durationSeconds * MIN_PROMPT_TOKENS_PER_SECOND));
-    }
-
-    private String preview(String transcript) {
-        return transcript.length() <= 120 ? transcript : transcript.substring(0, 120) + "...";
     }
 }

@@ -46,7 +46,7 @@ public class AchievementService {
                 transactionTemplate.executeWithoutResult(status -> doCheckAndAward(userId));
                 return;
             } catch (OptimisticLockingFailureException e) {
-                log.warn("Optimistic lock conflict on checkAndAward, attempt {}/3: userId={}", attempt + 1, userId);
+                log.debug("Optimistic lock conflict on checkAndAward, attempt {}/3: userId={}", attempt + 1, userId);
                 entityManager.clear();
                 if (attempt == 2) {
                     log.error("checkAndAward failed after 3 attempts: userId={}", userId);
@@ -82,7 +82,7 @@ public class AchievementService {
                 eventPublisher.publishEvent(
                         new AchievementEarnedEvent(userId, badge.name(), badge.getTitle(), badge.getEmoji())
                 );
-                log.info("Badge awarded: userId={}, badge={}", userId, badge.name());
+                log.debug("Badge awarded: userId={}, badge={}", userId, badge.name());
             }
         }
 

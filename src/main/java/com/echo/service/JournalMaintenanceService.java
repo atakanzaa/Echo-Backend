@@ -18,7 +18,7 @@ import java.util.List;
 public class JournalMaintenanceService {
 
     private static final int  STUCK_THRESHOLD_MINUTES = 20;
-    private static final long CHECK_INTERVAL_MS        = 5 * 60 * 1_000L; // 5 dakika
+    private static final long CHECK_INTERVAL_MS        = 5 * 60 * 1_000L;
 
     private final JournalEntryRepository journalEntryRepository;
 
