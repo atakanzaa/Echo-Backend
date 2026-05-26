@@ -104,11 +104,7 @@ public class GeminiTranscriptionProvider implements AITranscriptionProvider {
         Exception lastError = null;
 
         for (String mimeType : mimeCandidates) {
-            long bytesPerSecond = request.durationSeconds() > 0
-                    ? request.audioBytes().length / request.durationSeconds()
-                    : request.audioBytes().length;
-            log.info("Gemini transcription starting: bytes={} durationSeconds={} bytesPerSecond={} mimeType={} model={}",
-                    request.audioBytes().length, request.durationSeconds(), bytesPerSecond, mimeType, model);
+            log.debug("Gemini transcription starting: mimeType={} model={}", mimeType, model);
 
             try {
                 Map<String, Object> requestBody = Map.of(
