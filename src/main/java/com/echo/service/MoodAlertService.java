@@ -34,7 +34,7 @@ public class MoodAlertService {
     public void checkMoodPatterns() {
         LocalDate since = LocalDate.now().minusDays(7);
         var activeUsers = userRepo.findUsersWithRecentEntries(since);
-        log.info("Mood pattern check started: {} active users", activeUsers.size());
+        log.debug("Mood pattern check started: {} active users", activeUsers.size());
 
         int alerts = 0;
         for (var user : activeUsers) {

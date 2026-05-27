@@ -42,8 +42,8 @@ public class ResendEmailService {
         }
         User targetUser = userRepository.findByEmail(to.trim().toLowerCase(Locale.ROOT)).orElse(null);
         if (targetUser != null && targetUser.isEmailSuppressed()) {
-            log.warn("Email skipped because recipient is suppressed: userId={}, email={}, reason={}",
-                    targetUser.getId(), targetUser.getEmail(), targetUser.getEmailSuppressedReason());
+            log.warn("Email skipped because recipient is suppressed: userId={}, reason={}",
+                    targetUser.getId(), targetUser.getEmailSuppressedReason());
             return false;
         }
         if (!resend.isEnabled()) {

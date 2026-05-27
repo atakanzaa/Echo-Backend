@@ -70,7 +70,7 @@ public class AISynthesisService {
 
         synthesisCache.put(cacheKey, response);
         growthCache.put(userId, response);
-        log.info("Synthesis completed: userId={}, period={}, growthScore={}",
+        log.debug("Synthesis completed: userId={}, period={}, growthScore={}",
                 userId, periodDays, response.growthScore());
         return response;
     }
@@ -81,6 +81,7 @@ public class AISynthesisService {
      * The 7/30/90-day deep synthesis runs on-demand from the Insights page.
      */
     @Async
+    @Transactional(readOnly = true, noRollbackFor = ServiceUnavailableException.class)
     public void synthesizeAsync(UUID userId) {
         try {
             synthesize(userId, 1);
