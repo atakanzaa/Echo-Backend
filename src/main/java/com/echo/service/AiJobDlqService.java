@@ -81,12 +81,15 @@ public class AiJobDlqService {
         }
 
         log.info("Retrying {} DLQ jobs", jobs.size());
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
         for (AiJobDlq job : jobs) {
             try {
-                replay(job);
-                markResolved(job, "SUCCESS");
+                tx.executeWithoutResult(status -> {
+                    replay(job);
+                    markResolved(job, "SUCCESS");
+                });
             } catch (Exception e) {
-                handleRetryFailure(job, e);
+                tx.executeWithoutResult(status -> handleRetryFailure(job, e));
             }
         }
     }
@@ -102,8 +105,7 @@ public class AiJobDlqService {
         });
     }
 
-    @Transactional
-    protected void replay(AiJobDlq job) {
+    private void replay(AiJobDlq job) {
         if (!"ANALYSIS".equalsIgnoreCase(job.getJobType())) {
             throw new IllegalArgumentException("Unsupported DLQ job type: " + job.getJobType());
         }
@@ -135,8 +137,7 @@ public class AiJobDlqService {
         achievementService.checkAndAward(user.getId());
     }
 
-    @Transactional
-    protected void saveAnalysisResult(JournalEntry entry, User user, AIAnalysisResponse analysis) {
+    private void saveAnalysisResult(JournalEntry entry, User user, AIAnalysisResponse analysis) {
         double clampedScore = Math.max(0.0, Math.min(1.0, analysis.moodScore()));
         AnalysisResult result = AnalysisResult.builder()
                 .journalEntry(entry)
@@ -158,8 +159,7 @@ public class AiJobDlqService {
         updateUserMoodAverage(user.getId());
     }
 
-    @Transactional
-    protected void updateUserMoodAverage(UUID userId) {
+    private void updateUserMoodAverage(UUID userId) {
         userRepository.findById(userId).ifPresent(user -> {
             List<AnalysisResult> results = analysisResultRepository
                     .findByUserIdAndEntryDateBetweenOrderByEntryDateDesc(
@@ -175,15 +175,13 @@ public class AiJobDlqService {
         });
     }
 
-    @Transactional
-    protected void markResolved(AiJobDlq job, String resolution) {
+    private void markResolved(AiJobDlq job, String resolution) {
         job.setResolvedAt(OffsetDateTime.now());
         job.setResolution(resolution);
         aiJobDlqRepository.save(job);
     }
 
-    @Transactional
-    protected void handleRetryFailure(AiJobDlq job, Exception e) {
+    private void handleRetryFailure(AiJobDlq job, Exception e) {
         int nextAttempt = job.getAttemptCount() + 1;
         job.setAttemptCount(nextAttempt);
         job.setLastFailedAt(OffsetDateTime.now());

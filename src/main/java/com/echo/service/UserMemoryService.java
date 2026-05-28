@@ -6,6 +6,7 @@ import com.echo.repository.UserProfileSummaryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -28,10 +29,11 @@ public class UserMemoryService {
     }
 
     /**
-     * Her synthesis sonrası çağrılır — kullanıcı profilini AI çıktısından günceller.
-     * Mevcut profil üzerine yazar (silmez, geliştirir).
+     * Persists the adaptive-learning profile after each synthesis. Runs in its own
+     * transaction because callers (e.g. AISynthesisService.synthesize) execute inside a
+     * read-only transaction whose MANUAL flush mode would otherwise silently drop this write.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateFromSynthesis(UUID userId, AISynthesisResponse synthesis) {
         UserProfileSummary profile = getOrCreate(userId);
         if (profile.getLastSynthesisAt() != null

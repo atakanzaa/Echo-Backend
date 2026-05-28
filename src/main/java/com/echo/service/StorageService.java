@@ -1,6 +1,7 @@
 package com.echo.service;
 
 import com.echo.config.AppProperties;
+import com.echo.exception.ServiceUnavailableException;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -143,7 +144,7 @@ public class StorageService {
             log.debug("Image saved locally: {}", dir.resolve(filename));
             return "/uploads/images/" + filename;
         } catch (IOException e) {
-            throw new RuntimeException("Image could not be saved", e);
+            throw new ServiceUnavailableException("Image could not be saved", e);
         }
     }
 
@@ -178,7 +179,7 @@ public class StorageService {
             log.debug("Image uploaded to R2: {}", url);
             return url;
         } catch (IOException e) {
-            throw new RuntimeException("Image upload to R2 failed", e);
+            throw new ServiceUnavailableException("Image upload to R2 failed", e);
         }
     }
 
