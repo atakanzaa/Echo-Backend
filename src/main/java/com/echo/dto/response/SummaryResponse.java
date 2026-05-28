@@ -22,7 +22,7 @@ public record SummaryResponse(
         String narrativeSummary,
         List<DailyMoodScore> dailyMoodScores
 ) {
-    /** Günlük bazda mood verisi — Insights weekly chart ve emotion distribution için */
+    /** Per-day mood data — for the Insights weekly chart and emotion distribution. */
     public record DailyMoodScore(String date, double moodScore, String moodLabel, String moodCategory) {}
 
     public static SummaryResponse empty(java.time.LocalDate startDate,

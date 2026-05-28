@@ -8,11 +8,11 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * App Store gereksinimleri için statik uygulama yapılandırması.
- * iOS uygulaması bu endpoint'i kullanarak:
- * - Gizlilik politikası URL'ini alır
- * - Yasal feragat metnini gösterir
- * - Minimum sürüm kontrolü yapar
+ * Static application configuration for App Store requirements.
+ * The iOS app uses this endpoint to:
+ * - fetch the privacy-policy URL
+ * - show the legal disclaimer text
+ * - perform a minimum-version check
  */
 @RestController
 @RequestMapping("/api/v1/app")
@@ -26,8 +26,8 @@ public class AppConfigController {
     private static final String CRISIS_LINE_NAME      = "Türkiye Ruh Sağlığı Hattı";
 
     /**
-     * iOS uygulaması ilk açılışta bu endpoint'i çağırır.
-     * Public — authentication gerektirmez.
+     * The iOS app calls this endpoint on first launch.
+     * Public — requires no authentication.
      */
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getConfig() {

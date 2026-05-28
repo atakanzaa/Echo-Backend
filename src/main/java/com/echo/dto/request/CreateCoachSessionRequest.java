@@ -2,5 +2,5 @@ package com.echo.dto.request;
 
 import java.util.UUID;
 
-/** Coach oturumu oluşturma — journalEntryId opsiyonel, journal hakkında konuşmak için */
+/** Create a coach session — journalEntryId is optional, for talking about a journal entry. */
 public record CreateCoachSessionRequest(UUID journalEntryId) {}

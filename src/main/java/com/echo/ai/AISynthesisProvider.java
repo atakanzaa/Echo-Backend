@@ -1,16 +1,16 @@
 package com.echo.ai;
 
 /**
- * AI Synthesis provider interface — birden fazla veri kaynağını sentezler.
- * Gemini ve OpenAI implementasyonları mevcuttur.
+ * AI Synthesis provider interface — synthesizes multiple data sources.
+ * Gemini and OpenAI implementations are available.
  */
 public interface AISynthesisProvider {
 
     /**
-     * Kullanıcının journal, coach, goal ve profil verilerini sentezler.
+     * Synthesizes the user's journal, coach, goal and profile data.
      *
-     * @param request Birleştirilmiş kullanıcı verileri
-     * @return Sentez sonucu (narrative, suggestions, growth, profile update)
+     * @param request combined user data
+     * @return synthesis result (narrative, suggestions, growth, profile update)
      */
     AISynthesisResponse synthesize(AISynthesisRequest request);
 }

@@ -3,8 +3,8 @@ package com.echo.ai;
 import java.util.List;
 
 /**
- * Synthesis engine girdi verisi — kullanıcının tüm veri kaynaklarını birleştirir.
- * Token limitleri: entries max 30, coachExchanges max 20, summary max 200 char.
+ * Synthesis engine input — combines all of the user's data sources.
+ * Token limits: entries max 30, coachExchanges max 20, summary max 200 chars.
  */
 public record AISynthesisRequest(
         int periodDays,

@@ -18,7 +18,7 @@ import java.util.List;
 public class JournalMaintenanceService {
 
     private static final int  STUCK_THRESHOLD_MINUTES = 20;
-    private static final long CHECK_INTERVAL_MS        = 5 * 60 * 1_000L; // 5 dakika
+    private static final long CHECK_INTERVAL_MS        = 5 * 60 * 1_000L; // 5 minutes
 
     private final JournalEntryRepository journalEntryRepository;
 
@@ -30,10 +30,10 @@ public class JournalMaintenanceService {
 
         if (stuck.isEmpty()) return;
 
-        log.warn("Takılı {} entry tespit edildi, FAILED olarak işaretleniyor", stuck.size());
+        log.warn("Detected {} stuck entries, marking as FAILED", stuck.size());
 
         for (JournalEntry entry : stuck) {
-            log.warn("Takılı entry recover: id={}, status={}, createdAt={}",
+            log.warn("Recovering stuck entry: id={}, status={}, createdAt={}",
                     entry.getId(), entry.getStatus(), entry.getCreatedAt());
 
             EntryStatus previousStatus = entry.getStatus();

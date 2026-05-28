@@ -167,8 +167,8 @@ public class ResendWebhookService {
             user.setEmailSuppressedReason(reason);
             user.setEmailSuppressedAt(OffsetDateTime.now());
             userRepository.save(user);
-            log.warn("User email suppressed after Resend webhook: userId={}, email={}, reason={}",
-                    user.getId(), user.getEmail(), reason);
+            log.warn("User email suppressed after Resend webhook: userId={}, reason={}",
+                    user.getId(), reason);
         });
     }
 

@@ -31,7 +31,6 @@ public class JournalProcessingWorker {
 
     @Async("journalProcessingExecutor")
     public void analyzeTranscriptAsync(UUID entryId, String transcript, UUID userId) {
-        log.info("Transcript analysis started: entryId={}", entryId);
         try {
             UserDetails details = getUserDetails(userId);
             AIAnalysisResponse analysis = router.analysis()
@@ -39,7 +38,6 @@ public class JournalProcessingWorker {
             entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
-            log.info("Transcript analysis completed: entryId={}", entryId);
         } catch (Exception e) {
             log.error("Transcript analysis failed: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));
@@ -104,7 +102,6 @@ public class JournalProcessingWorker {
             entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
-            log.info("Async pipeline completed: entryId={}", entryId);
         } catch (Exception e) {
             log.error("Analysis failed after successful transcription: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));

@@ -1,8 +1,8 @@
 package com.echo.ai;
 
 /**
- * AI'nın günlük girişinden tespit ettiği başarı/kazanım.
- * Örnek: "Proje tamamlandı" → title="Completed project milestone", type="work"
+ * An achievement detected by the AI from a journal entry.
+ * Example: "Finished the project" → title="Completed project milestone", type="work"
  */
 public record AIDetectedAchievement(
         String title,

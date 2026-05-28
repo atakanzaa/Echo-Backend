@@ -18,9 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OpenAI tabanlı synthesis provider.
- * response_format: json_object ile yapılandırılmış JSON garantisi.
- * max_tokens=1000, temperature=0.3 — tutarlı ve ekonomik çıktı.
+ * OpenAI-based synthesis provider.
+ * response_format: json_object guarantees structured JSON.
+ * max_tokens=1000, temperature=0.3 — consistent and economical output.
  */
 @Slf4j
 @Component
@@ -103,7 +103,6 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
         );
 
         String raw = extractContent(response.getBody());
-        log.debug("OpenAI synthesis yanıtı alındı, parse ediliyor");
         return parseResponse(raw);
     }
 
@@ -112,7 +111,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
     }
 
     private AISynthesisResponse synthesizeFallback(AISynthesisRequest request, Throwable ex) {
-        log.error("OpenAI synthesis devre dışı (circuit open): {}", ex.getMessage());
+        log.error("OpenAI synthesis disabled (circuit open): {}", ex.getMessage());
         throw new ServiceUnavailableException(
                 "AI sentez servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
     }
@@ -178,7 +177,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
         return (String) message.get("content");
     }
 
-    /** Markdown kod bloğu veya fazladan metin varsa temizler — ilk { ile son } arasını alır. */
+    /** Strips markdown code fences or extra text — keeps everything between the first { and last }. */
     private String extractJson(String raw) {
         int start = raw.indexOf('{');
         int end   = raw.lastIndexOf('}');
@@ -228,7 +227,7 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
             return objectMapper.convertValue(arr,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, AISynthesisResponse.Suggestion.class));
         } catch (Exception e) {
-            log.warn("Suggestions parse edilemedi: {}", e.getMessage());
+            log.warn("Could not parse suggestions: {}", e.getMessage());
             return List.of();
         }
     }

@@ -3,10 +3,10 @@ package com.echo.ai;
 public interface AITranscriptionProvider {
 
     /**
-     * Ses dosyasını yazıya çevirir.
+     * Transcribes the audio file to text.
      *
-     * @param request Ham ses verisi, metadata ve süre bilgisi
-     * @return Transkript ve provider metadata
+     * @param request raw audio bytes, metadata and duration
+     * @return transcript and provider metadata
      */
     AITranscriptionResult transcribe(AITranscriptionRequest request);
 }

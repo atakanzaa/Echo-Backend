@@ -20,7 +20,7 @@ public class CoachSession {
     @UpdateTimestamp @Column(name = "updated_at", nullable = false) private OffsetDateTime updatedAt;
     @Column(name = "is_active", nullable = false) @Builder.Default private boolean active = true;
 
-    /** Journal hakkında konuşma başlatıldığında ilgili entry — nullable */
+    /** The related entry when a conversation is started about a journal entry — nullable. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "journal_entry_id")
     private JournalEntry journalEntry;

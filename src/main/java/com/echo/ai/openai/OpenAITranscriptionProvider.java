@@ -65,7 +65,7 @@ public class OpenAITranscriptionProvider implements AITranscriptionProvider {
             );
         }
 
-        log.debug("Whisper transcription tamamlandı: {} bytes", request.audioBytes().length);
+        log.debug("Whisper transcription complete: {} bytes", request.audioBytes().length);
         return new AITranscriptionResult(
                 transcript.strip(),
                 "openai",
@@ -80,7 +80,7 @@ public class OpenAITranscriptionProvider implements AITranscriptionProvider {
         if (ex instanceof TranscriptionFailedException transcriptionFailedException) {
             throw transcriptionFailedException;
         }
-        log.error("OpenAI transcription devre dışı (circuit open): {}", ex.getMessage());
+        log.error("OpenAI transcription disabled (circuit open): {}", ex.getMessage());
         throw new ServiceUnavailableException(
                 "Ses tanıma servisi şu anda kullanılamıyor, lütfen birkaç dakika sonra tekrar deneyin.", ex);
     }

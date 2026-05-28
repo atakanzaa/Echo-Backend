@@ -42,16 +42,16 @@ public class ResendEmailService {
         }
         User targetUser = userRepository.findByEmail(to.trim().toLowerCase(Locale.ROOT)).orElse(null);
         if (targetUser != null && targetUser.isEmailSuppressed()) {
-            log.warn("Email skipped because recipient is suppressed: userId={}, email={}, reason={}",
-                    targetUser.getId(), targetUser.getEmail(), targetUser.getEmailSuppressedReason());
+            log.warn("Email skipped because recipient is suppressed: userId={}, reason={}",
+                    targetUser.getId(), targetUser.getEmailSuppressedReason());
             return false;
         }
         if (!resend.isEnabled()) {
-            log.info("Resend disabled, simulating email delivery: to={}, subject={}", to, subject);
+            log.info("Resend disabled, simulating email delivery: subject={}", subject);
             return true;
         }
         if (!StringUtils.hasText(resend.getApiKey())) {
-            log.warn("Resend API key missing, email skipped: to={}, subject={}", to, subject);
+            log.warn("Resend API key missing, email skipped: subject={}", subject);
             return false;
         }
 
@@ -73,14 +73,14 @@ public class ResendEmailService {
 
         Map<?, ?> response = restTemplate.postForObject(RESEND_URL, new HttpEntity<>(payload, headers), Map.class);
         Object emailId = response == null ? null : response.get("id");
-        log.info("Email delivered via Resend: to={}, subject={}, emailId={}", to, subject, emailId);
+        log.info("Email delivered via Resend: subject={}, emailId={}", subject, emailId);
         return true;
     }
 
     @SuppressWarnings("unused")
     public boolean sendFallback(String to, String subject, String htmlBody, String textBody, Throwable throwable) {
-        log.error("Email delivery fallback triggered: to={}, subject={}, error={}",
-                to, subject, throwable.getMessage());
+        log.error("Email delivery fallback triggered: subject={}, error={}",
+                subject, throwable.getMessage());
         return false;
     }
 

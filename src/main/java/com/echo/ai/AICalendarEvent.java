@@ -3,9 +3,9 @@ package com.echo.ai;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * AI'nın günlük girişinden tespit ettiği gelecek etkinlik/plan.
- * Örnek: "Yarın sabah spor salonu" → title="Gym session", scheduledFor="tomorrow morning"
- * Not: scheduledFor doğal dil formatında — kesin ISO tarih değil.
+ * A future event/plan detected by the AI from a journal entry.
+ * Example: "Gym tomorrow morning" → title="Gym session", scheduledFor="tomorrow morning"
+ * Note: scheduledFor is in natural-language form — not a precise ISO date.
  */
 public record AICalendarEvent(
         String title,

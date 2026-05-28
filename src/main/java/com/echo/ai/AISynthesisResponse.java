@@ -3,7 +3,7 @@ package com.echo.ai;
 import java.util.List;
 
 /**
- * Synthesis engine çıktı verisi — Summary, Insights, Achievements ve Memory Layer'ı besler.
+ * Synthesis engine output — feeds Summary, Insights, Achievements and the Memory Layer.
  */
 public record AISynthesisResponse(
         String narrativeSummary,

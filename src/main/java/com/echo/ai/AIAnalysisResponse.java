@@ -3,11 +3,11 @@ package com.echo.ai;
 import java.util.List;
 
 /**
- * AI'nın günlük giriş analizinden döndürdüğü yapılandırılmış yanıt.
- * Tüm provider'lar (OpenAI, Gemini, Claude, Ollama) bu formatı üretir.
+ * Structured response returned by the AI from a journal-entry analysis.
+ * All providers (OpenAI, Gemini, Claude, Ollama) produce this format.
  */
 public record AIAnalysisResponse(
-        // Mevcut alanlar
+        // core fields
         String       summary,
         double       moodScore,
         String       moodLabel,
