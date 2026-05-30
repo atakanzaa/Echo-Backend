@@ -15,6 +15,7 @@ import com.echo.repository.UserRepository;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.echo.exception.ResourceNotFoundException;
 import com.echo.exception.ServiceUnavailableException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -156,7 +157,8 @@ public class AISynthesisService {
 
         int completedCount = goalRepo.countByUserIdAndStatus(userId, GoalStatus.COMPLETED);
 
-        User user = userRepo.findById(userId).orElseThrow();
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         String userProfile = memoryService.getUserProfile(userId);
 
         return new AISynthesisRequest(
@@ -168,7 +170,7 @@ public class AISynthesisService {
                 user.getCurrentStreak(),
                 user.getTotalEntries(),
                 userProfile,
-                null,  // previousPeriodTrend — future iteration
+                null,
                 user.getPreferredLanguage()
         );
     }

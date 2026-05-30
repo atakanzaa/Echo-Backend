@@ -148,7 +148,6 @@ public class JournalService {
         return JournalStatusResponse.from(entry);
     }
 
-    // N+1 fix: batch-load analysis results instead of per-entry queries
     @Transactional(readOnly = true)
     public List<JournalEntryResponse> getByDate(UUID userId, LocalDate date) {
         List<JournalEntry> entries = journalEntryRepository
@@ -156,7 +155,6 @@ public class JournalService {
         return mapWithAnalysis(entries);
     }
 
-    // uses Pageable instead of hardcoded findTop7
     @Transactional(readOnly = true)
     public List<JournalEntryResponse> getRecent(UUID userId, int limit) {
         List<JournalEntry> entries = journalEntryRepository
@@ -164,7 +162,6 @@ public class JournalService {
         return mapWithAnalysis(entries);
     }
 
-    // batch-loads analysis results in one query to eliminate N+1
     private List<JournalEntryResponse> mapWithAnalysis(List<JournalEntry> entries) {
         if (entries.isEmpty()) return List.of();
 

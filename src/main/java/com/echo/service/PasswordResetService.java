@@ -72,7 +72,7 @@ public class PasswordResetService {
                 emailTemplateService.passwordResetText(code, user.getPreferredLanguage())
         );
         if (!appProperties.getResend().isEnabled() && environment.matchesProfiles("dev", "test")) {
-            log.info("Password reset OTP generated for local development: email={}, code={}", user.getEmail(), code);
+            log.info("Password reset OTP generated for local development: userId={}", user.getId());
         }
         if (!delivered) {
             passwordResetTokenRepository.delete(token);

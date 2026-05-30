@@ -1,7 +1,6 @@
 package com.echo.service;
 
 import com.echo.domain.journal.AnalysisResult;
-import com.echo.domain.subscription.FeatureKey;
 import com.echo.dto.response.AIInsightsResponse;
 import com.echo.dto.response.InsightsPeriodEligibilityResponse;
 import com.echo.repository.AnalysisResultRepository;

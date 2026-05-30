@@ -31,7 +31,6 @@ public class JournalProcessingWorker {
 
     @Async("journalProcessingExecutor")
     public void analyzeTranscriptAsync(UUID entryId, String transcript, UUID userId) {
-        log.info("Transcript analysis started: entryId={}", entryId);
         try {
             UserDetails details = getUserDetails(userId);
             AIAnalysisResponse analysis = router.analysis()
@@ -39,7 +38,6 @@ public class JournalProcessingWorker {
             entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
-            log.info("Transcript analysis completed: entryId={}", entryId);
         } catch (Exception e) {
             log.error("Transcript analysis failed: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));
@@ -51,12 +49,6 @@ public class JournalProcessingWorker {
 
     @Async("journalProcessingExecutor")
     public void processAudioEntryAsync(UUID entryId, AITranscriptionRequest request, UUID userId) {
-        long bytesPerSecond = request.durationSeconds() > 0
-                ? request.audioBytes().length / request.durationSeconds()
-                : request.audioBytes().length;
-        log.info("Async pipeline started: entryId={} bytes={} durationSeconds={} bytesPerSecond={} contentType={}",
-                entryId, request.audioBytes().length, request.durationSeconds(), bytesPerSecond, request.contentType());
-
         String transcript;
         try {
             entryUpdater.updateStatus(entryId, EntryStatus.TRANSCRIBING);
@@ -70,13 +62,8 @@ public class JournalProcessingWorker {
                 );
             }
 
-            log.info("Transcription accepted: entryId={} provider={} mimeType={} promptTokens={} candidateTokens={} transcriptChars={}",
-                    entryId,
-                    result.provider(),
-                    result.resolvedMimeType(),
-                    result.promptTokenCount(),
-                    result.candidateTokenCount(),
-                    transcript.length());
+            log.debug("Transcription accepted: entryId={} provider={} transcriptChars={}",
+                    entryId, result.provider(), transcript.length());
 
             entryUpdater.setTranscript(entryId, transcript);
             entryUpdater.updateStatus(entryId, EntryStatus.ANALYZING);
@@ -104,7 +91,6 @@ public class JournalProcessingWorker {
             entryUpdater.saveAnalysisResult(entryId, userId, analysis);
             entryUpdater.updateStatus(entryId, EntryStatus.COMPLETE);
             achievementService.checkAndAward(userId);
-            log.info("Async pipeline completed: entryId={}", entryId);
         } catch (Exception e) {
             log.error("Analysis failed after successful transcription: entryId={}", entryId, e);
             entryUpdater.markFailed(entryId, userFacingAnalysisFailure(e));

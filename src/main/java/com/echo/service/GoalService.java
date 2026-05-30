@@ -117,7 +117,7 @@ public class GoalService {
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
 
-        log.info("Goal marked not completed: goalId={}, userId={}", goalId, userId);
+        log.debug("Goal marked not completed: goalId={}, userId={}", goalId, userId);
         return GoalResponse.from(goal);
     }
 
@@ -137,7 +137,7 @@ public class GoalService {
         goalRepository.save(goal);
         expirePendingSuggestions(goal.getId());
 
-        log.info("Goal soft-deleted: goalId={}, userId={}", goalId, userId);
+        log.debug("Goal soft-deleted: goalId={}, userId={}", goalId, userId);
     }
 
     private GoalResponse completeGoalInternal(

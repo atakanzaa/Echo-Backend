@@ -3,7 +3,6 @@ package com.echo.service;
 import com.echo.domain.journal.AnalysisResult;
 import com.echo.domain.journal.MoodCategory;
 import com.echo.domain.journal.SummaryPeriod;
-import com.echo.domain.subscription.FeatureKey;
 import com.echo.dto.response.SummaryResponse;
 import com.echo.repository.AnalysisResultRepository;
 import com.echo.repository.UserRepository;
