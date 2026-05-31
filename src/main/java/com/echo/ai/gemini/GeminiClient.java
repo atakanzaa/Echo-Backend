@@ -148,7 +148,9 @@ public class GeminiClient {
         if (retryAfterHeaders != null && !retryAfterHeaders.isEmpty()) {
             try {
                 return Long.parseLong(retryAfterHeaders.get(0)) * 1000L;
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+                // Retry-After in HTTP-date format is not supported here; fall through to jittered backoff.
+            }
         }
         return jitteredBackoff(attempt);
     }

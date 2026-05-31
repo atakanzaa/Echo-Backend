@@ -6,6 +6,7 @@ import com.echo.domain.user.User;
 import com.echo.repository.PasswordResetTokenRepository;
 import com.echo.repository.RefreshTokenRepository;
 import com.echo.repository.UserRepository;
+import com.echo.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -44,7 +45,7 @@ public class PasswordResetService {
 
     @Transactional
     public void requestReset(String email, String clientIp) {
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = EmailNormalizer.normalize(email);
         User user = userRepository.findByEmail(normalizedEmail).orElse(null);
         if (user == null || !user.isPasswordLoginEnabled()) {
             return;
@@ -72,7 +73,7 @@ public class PasswordResetService {
                 emailTemplateService.passwordResetText(code, user.getPreferredLanguage())
         );
         if (!appProperties.getResend().isEnabled() && environment.matchesProfiles("dev", "test")) {
-            log.info("Password reset OTP generated for local development: email={}, code={}", user.getEmail(), code);
+            log.info("Password reset OTP generated for local development: userId={}, code={}", user.getId(), code);
         }
         if (!delivered) {
             passwordResetTokenRepository.delete(token);
@@ -82,7 +83,7 @@ public class PasswordResetService {
 
     @Transactional
     public void resetPassword(String email, String code, String newPassword) {
-        User user = userRepository.findByEmail(normalizeEmail(email))
+        User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
                 .orElseThrow(this::invalidResetRequest);
 
         if (!user.isPasswordLoginEnabled()) {
@@ -121,10 +122,6 @@ public class PasswordResetService {
 
     private IllegalArgumentException invalidResetRequest() {
         return new IllegalArgumentException("Invalid reset request");
-    }
-
-    private String normalizeEmail(String email) {
-        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private String generateCode() {

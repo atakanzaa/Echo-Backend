@@ -15,9 +15,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Runtime'da restart olmadan AI provider değiştirmeyi sağlar.
- * Analysis / coach / synthesis için global provider kullanılır;
- * transcription gerekirse bağımsız provider ve fallback ile override edilebilir.
+ * Allows switching the active AI provider at runtime without a restart.
+ * Analysis, coach, and synthesis share a single global provider; transcription
+ * may be overridden by an independent provider with its own fallback chain.
  *
  * Provider beans are auto-discovered via Spring DI lists. To add a new provider,
  * implement the relevant interface(s) and register the bean — no router changes needed.

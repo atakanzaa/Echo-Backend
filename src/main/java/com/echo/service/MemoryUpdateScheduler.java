@@ -31,7 +31,6 @@ public class MemoryUpdateScheduler {
     public void updateWeeklyProfiles() {
         LocalDate since = LocalDate.now().minusDays(7);
         var activeUsers = userRepo.findUsersWithRecentEntries(since);
-        log.info("Weekly profile update started: {} active users", activeUsers.size());
 
         int success = 0;
         int failed  = 0;
@@ -45,14 +44,14 @@ public class MemoryUpdateScheduler {
             }
         }
 
-        log.info("Weekly profile update completed: {} success, {} failed", success, failed);
+        log.info("Weekly profile update completed: activeUsers={}, success={}, failed={}",
+                activeUsers.size(), success, failed);
     }
 
     @Scheduled(cron = "0 0 9 * * SUN")
     public void sendWeeklyReflections() {
         LocalDate since = LocalDate.now().minusDays(7);
         var activeUsers = userRepo.findUsersWithRecentEntries(since);
-        log.info("Weekly reflection notifications: {} active users", activeUsers.size());
 
         int sent = 0;
         for (var user : activeUsers) {
@@ -90,6 +89,7 @@ public class MemoryUpdateScheduler {
             }
         }
 
-        log.info("Weekly reflection notifications sent: {}", sent);
+        log.info("Weekly reflection notifications sent: activeUsers={}, sent={}",
+                activeUsers.size(), sent);
     }
 }

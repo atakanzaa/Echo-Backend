@@ -34,7 +34,6 @@ public class MoodAlertService {
     public void checkMoodPatterns() {
         LocalDate since = LocalDate.now().minusDays(7);
         var activeUsers = userRepo.findUsersWithRecentEntries(since);
-        log.info("Mood pattern check started: {} active users", activeUsers.size());
 
         int alerts = 0;
         for (var user : activeUsers) {
@@ -44,7 +43,8 @@ public class MoodAlertService {
             }
         }
 
-        log.info("Mood pattern check completed: {} alerts sent", alerts);
+        log.info("Mood pattern check completed: activeUsers={}, alertsSent={}",
+                activeUsers.size(), alerts);
     }
 
     private boolean hasLowMoodStreak(java.util.UUID userId) {

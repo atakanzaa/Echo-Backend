@@ -189,7 +189,8 @@ public class CoachService {
             if (!session.isActive()) {
                 throw new IllegalArgumentException("Coach session is inactive");
             }
-            User user = userRepo.findById(userId).orElseThrow();
+            User user = userRepo.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
             if (!entitlementService.hasSessionQuota(userId, sessionId, FeatureKey.COACH_MESSAGES_PER_SESSION)) {
                 throw new QuotaExceededException(
@@ -236,7 +237,8 @@ public class CoachService {
                             "Message limit reached for this coach session. Upgrade to Premium for longer conversations."
                     );
                 }
-                User user = userRepo.findById(userId).orElseThrow();
+                User user = userRepo.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
                 CoachMessage userMsg = CoachMessage.builder()
                         .session(session).user(user).role(MessageRole.USER).content(request.content()).build();

@@ -1,5 +1,6 @@
 package com.echo.domain.user;
 
+import com.echo.domain.subscription.SubscriptionTier;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -52,7 +53,7 @@ public class User {
 
     @Column(name = "subscription_tier", nullable = false, length = 20)
     @Builder.Default
-    private String subscriptionTier = "FREE";
+    private String subscriptionTier = SubscriptionTier.FREE.name();
 
     @Column(name = "ads_enabled", nullable = false)
     @Builder.Default

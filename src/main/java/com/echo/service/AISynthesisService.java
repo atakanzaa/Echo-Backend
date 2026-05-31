@@ -70,7 +70,7 @@ public class AISynthesisService {
 
         synthesisCache.put(cacheKey, response);
         growthCache.put(userId, response);
-        log.info("Synthesis completed: userId={}, period={}, growthScore={}",
+        log.debug("Synthesis completed: userId={}, period={}, growthScore={}",
                 userId, periodDays, response.growthScore());
         return response;
     }

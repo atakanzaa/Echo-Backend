@@ -7,6 +7,7 @@ import com.echo.exception.ServiceUnavailableException;
 import com.echo.exception.UnauthorizedException;
 import com.echo.repository.ResendWebhookEventRepository;
 import com.echo.repository.UserRepository;
+import com.echo.util.EmailNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,7 +27,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 
 @Slf4j
 @Service
@@ -62,7 +62,7 @@ public class ResendWebhookService {
         String eventType = root.path("type").asText("");
         JsonNode data = root.path("data");
         List<String> recipients = extractRecipients(data.path("to"));
-        String primaryRecipient = recipients.isEmpty() ? null : normalizeEmail(recipients.get(0));
+        String primaryRecipient = recipients.isEmpty() ? null : EmailNormalizer.normalize(recipients.get(0));
 
         resendWebhookEventRepository.save(ResendWebhookEvent.builder()
                 .webhookMessageId(messageId)
@@ -162,13 +162,13 @@ public class ResendWebhookService {
         if (!StringUtils.hasText(email)) {
             return;
         }
-        userRepository.findByEmail(normalizeEmail(email)).ifPresent(user -> {
+        userRepository.findByEmail(EmailNormalizer.normalize(email)).ifPresent(user -> {
             user.setEmailSuppressed(true);
             user.setEmailSuppressedReason(reason);
             user.setEmailSuppressedAt(OffsetDateTime.now());
             userRepository.save(user);
-            log.warn("User email suppressed after Resend webhook: userId={}, email={}, reason={}",
-                    user.getId(), user.getEmail(), reason);
+            log.warn("User email suppressed after Resend webhook: userId={}, reason={}",
+                    user.getId(), reason);
         });
     }
 
@@ -241,7 +241,4 @@ public class ResendWebhookService {
         return request.getHeader(fallbackName);
     }
 
-    private String normalizeEmail(String email) {
-        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
-    }
 }

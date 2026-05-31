@@ -3,6 +3,7 @@ package com.echo.service;
 import com.echo.config.AppProperties;
 import com.echo.domain.user.User;
 import com.echo.repository.UserRepository;
+import com.echo.util.EmailNormalizer;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +16,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
@@ -40,10 +40,10 @@ public class ResendEmailService {
             log.warn("Email skipped because recipient is blank: subject={}", subject);
             return false;
         }
-        User targetUser = userRepository.findByEmail(to.trim().toLowerCase(Locale.ROOT)).orElse(null);
+        User targetUser = userRepository.findByEmail(EmailNormalizer.normalize(to)).orElse(null);
         if (targetUser != null && targetUser.isEmailSuppressed()) {
-            log.warn("Email skipped because recipient is suppressed: userId={}, email={}, reason={}",
-                    targetUser.getId(), targetUser.getEmail(), targetUser.getEmailSuppressedReason());
+            log.warn("Email skipped because recipient is suppressed: userId={}, reason={}",
+                    targetUser.getId(), targetUser.getEmailSuppressedReason());
             return false;
         }
         if (!resend.isEnabled()) {
@@ -73,7 +73,7 @@ public class ResendEmailService {
 
         Map<?, ?> response = restTemplate.postForObject(RESEND_URL, new HttpEntity<>(payload, headers), Map.class);
         Object emailId = response == null ? null : response.get("id");
-        log.info("Email delivered via Resend: to={}, subject={}, emailId={}", to, subject, emailId);
+        log.info("Email delivered via Resend: subject={}, emailId={}", subject, emailId);
         return true;
     }
 

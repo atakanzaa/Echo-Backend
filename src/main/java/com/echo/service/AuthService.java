@@ -14,6 +14,7 @@ import com.echo.exception.UnauthorizedException;
 import com.echo.repository.RefreshTokenRepository;
 import com.echo.repository.UserRepository;
 import com.echo.security.JwtTokenProvider;
+import com.echo.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,7 +45,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        String email = normalizeEmail(request.email());
+        String email = EmailNormalizer.normalize(request.email());
         if (userRepository.existsByEmail(email)) {
             // same generic message to prevent email enumeration
             throw new BadCredentialsException(INVALID_CREDENTIALS);
@@ -64,7 +65,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        var user = userRepository.findByEmail(normalizeEmail(request.email()))
+        var user = userRepository.findByEmail(EmailNormalizer.normalize(request.email()))
                 .orElseThrow(() -> new BadCredentialsException(INVALID_CREDENTIALS));
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -107,7 +108,7 @@ public class AuthService {
     @Transactional
     public AuthResponse loginWithGoogle(GoogleLoginRequest request) {
         GoogleIdentityService.GoogleIdentity identity = googleIdentityService.verifyIdToken(request.idToken());
-        String email = normalizeEmail(identity.email());
+        String email = EmailNormalizer.normalize(identity.email());
 
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> createUserFromGoogle(identity, request));
@@ -197,7 +198,7 @@ public class AuthService {
 
     private User createUserFromGoogle(GoogleIdentityService.GoogleIdentity identity, GoogleLoginRequest request) {
         return userRepository.save(User.builder()
-                .email(normalizeEmail(identity.email()))
+                .email(EmailNormalizer.normalize(identity.email()))
                 .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .displayName(resolveDisplayName(identity.name(), identity.email()))
                 .timezone(hasText(request.timezone()) ? request.timezone() : "UTC")
@@ -216,10 +217,6 @@ public class AuthService {
             return "Echo User";
         }
         return local.substring(0, 1).toUpperCase(Locale.ROOT) + local.substring(1);
-    }
-
-    private String normalizeEmail(String email) {
-        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private boolean hasText(String value) {
