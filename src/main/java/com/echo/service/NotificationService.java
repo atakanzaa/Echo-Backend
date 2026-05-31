@@ -2,19 +2,25 @@ package com.echo.service;
 
 import com.echo.domain.capsule.CapsuleStatus;
 import com.echo.domain.capsule.TimeCapsule;
+import com.echo.domain.notification.ApnsEnvironment;
 import com.echo.domain.notification.Notification;
 import com.echo.domain.notification.NotificationType;
+import com.echo.domain.notification.PushPlatform;
 import com.echo.domain.notification.PushToken;
 import com.echo.domain.user.User;
 import com.echo.dto.response.NotificationResponse;
 import com.echo.dto.response.PagedResponse;
+import com.echo.event.NotificationCreatedEvent;
 import com.echo.exception.ResourceNotFoundException;
 import com.echo.repository.NotificationRepository;
 import com.echo.repository.PushTokenRepository;
 import com.echo.repository.TimeCapsuleRepository;
 import com.echo.repository.UserRepository;
+import com.echo.service.notification.NotificationTemplateService;
+import com.echo.service.notification.RenderedNotification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,21 +28,37 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private static final Pattern LIKE_COUNT_PATTERN = Pattern.compile("^(\\d+) people liked your post.*$");
+    private static final String LIKE_GROUP_BODY_TEMPLATE = "%d";
+    private static final int LIKE_COLLAPSE_WINDOW_HOURS = 1;
 
     private final NotificationRepository notificationRepository;
     private final PushTokenRepository pushTokenRepository;
     private final UserRepository userRepository;
     private final TimeCapsuleRepository timeCapsuleRepository;
+    private final NotificationTemplateService templateService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Transactional
+    public void notifyTemplated(UUID userId,
+                                NotificationType type,
+                                Map<String, String> templateVars,
+                                String targetType,
+                                UUID targetId,
+                                String eventId,
+                                String groupKey) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        RenderedNotification rendered = templateService.render(type, user.getPreferredLanguage(), templateVars);
+        notify(userId, type, rendered.title(), rendered.body(), targetType, targetId, eventId, groupKey);
+    }
 
     @Transactional
     public void notify(UUID userId,
@@ -56,7 +78,8 @@ public class NotificationService {
         }
 
         try {
-            saveNotification(userId, type, title, body, targetType, targetId, eventId, groupKey);
+            Notification saved = saveNotification(userId, type, title, body, targetType, targetId, eventId, groupKey);
+            eventPublisher.publishEvent(new NotificationCreatedEvent(saved.getId()));
         } catch (DataIntegrityViolationException ex) {
             log.debug("Notification deduplicated by unique event_id: {}", eventId);
         }
@@ -89,7 +112,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public void registerPushToken(UUID userId, String token, String platform) {
+    public void registerPushToken(UUID userId, String token, String platformRaw, String environmentRaw) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         String normalizedToken = token == null ? null : token.trim();
@@ -102,8 +125,11 @@ public class NotificationService {
                         .user(user)
                         .token(normalizedToken)
                         .build());
-        pushToken.setPlatform(platform == null || platform.isBlank() ? "ios" : platform.toLowerCase());
+        pushToken.setPlatform(PushPlatform.fromClient(platformRaw));
+        pushToken.setEnvironment(ApnsEnvironment.fromClient(environmentRaw));
         pushToken.setActive(true);
+        pushToken.setFailureCount(0);
+        pushToken.setLastUsedAt(OffsetDateTime.now());
         pushTokenRepository.save(pushToken);
     }
 
@@ -126,11 +152,10 @@ public class NotificationService {
             capsule.setStatus(CapsuleStatus.UNLOCKED);
             timeCapsuleRepository.save(capsule);
 
-            notify(
+            notifyTemplated(
                     capsule.getUser().getId(),
                     NotificationType.CAPSULE_UNLOCKED,
-                    "Time Capsule Unlocked",
-                    "One of your time capsules is now ready to open.",
+                    Map.of(),
                     "CAPSULE",
                     capsule.getId(),
                     "capsule_unlocked:" + capsule.getId(),
@@ -147,33 +172,36 @@ public class NotificationService {
                                   UUID targetId,
                                   String eventId,
                                   String groupKey) {
-        OffsetDateTime oneHourAgo = OffsetDateTime.now().minusHours(1);
+        OffsetDateTime windowStart = OffsetDateTime.now().minusHours(LIKE_COLLAPSE_WINDOW_HOURS);
         var existing = notificationRepository
-                .findFirstByUserIdAndGroupKeyAndCreatedAtAfterOrderByCreatedAtDesc(userId, groupKey, oneHourAgo);
+                .findFirstByUserIdAndGroupKeyAndCreatedAtAfterOrderByCreatedAtDesc(userId, groupKey, windowStart);
 
         if (existing.isPresent()) {
             Notification notification = existing.get();
-            int count = extractLikeCount(notification.getBody());
-            int next = count + 1;
-            notification.setBody(next + " people liked your post");
             notification.setRead(false);
             notification.setReadAt(null);
             notificationRepository.save(notification);
+            // Within the collapse window: refresh the in-app row but do not
+            // fire another push to avoid spamming the user during like bursts.
             return;
         }
 
-        String collapsedBody = body == null || body.isBlank() ? "1 person liked your post" : body;
-        saveNotification(userId, type, title, collapsedBody, targetType, targetId, eventId, groupKey);
+        try {
+            Notification saved = saveNotification(userId, type, title, body, targetType, targetId, eventId, groupKey);
+            eventPublisher.publishEvent(new NotificationCreatedEvent(saved.getId()));
+        } catch (DataIntegrityViolationException ex) {
+            log.debug("Notification deduplicated by unique event_id: {}", eventId);
+        }
     }
 
-    private void saveNotification(UUID userId,
-                                  NotificationType type,
-                                  String title,
-                                  String body,
-                                  String targetType,
-                                  UUID targetId,
-                                  String eventId,
-                                  String groupKey) {
+    private Notification saveNotification(UUID userId,
+                                          NotificationType type,
+                                          String title,
+                                          String body,
+                                          String targetType,
+                                          UUID targetId,
+                                          String eventId,
+                                          String groupKey) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Notification notification = Notification.builder()
@@ -186,17 +214,6 @@ public class NotificationService {
                 .eventId(eventId)
                 .groupKey(groupKey)
                 .build();
-        notificationRepository.save(notification);
-    }
-
-    private int extractLikeCount(String body) {
-        if (body == null) {
-            return 1;
-        }
-        Matcher matcher = LIKE_COUNT_PATTERN.matcher(body);
-        if (matcher.matches()) {
-            return Integer.parseInt(matcher.group(1));
-        }
-        return 1;
+        return notificationRepository.save(notification);
     }
 }

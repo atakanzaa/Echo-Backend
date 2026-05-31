@@ -6,6 +6,7 @@ import com.echo.domain.user.User;
 import com.echo.dto.response.AchievementDetailResponse;
 import com.echo.dto.response.AchievementsResponse;
 import com.echo.event.AchievementEarnedEvent;
+import com.echo.event.AchievementProgressEvent;
 import jakarta.persistence.EntityManager;
 import com.echo.repository.JournalEntryRepository;
 import com.echo.repository.UserAchievementRepository;
@@ -66,7 +67,9 @@ public class AchievementService {
                 .stream().map(UserAchievement::getBadgeKey).collect(Collectors.toSet());
 
         for (BadgeDefinition badge : BadgeDefinition.values()) {
-            if (!earned.contains(badge.name()) && badge.isEarned(user)) {
+            if (earned.contains(badge.name())) continue;
+
+            if (badge.isEarned(user)) {
                 var achievement = UserAchievement.builder()
                         .user(user)
                         .badgeKey(badge.name())
@@ -83,6 +86,11 @@ public class AchievementService {
                         new AchievementEarnedEvent(userId, badge.name(), badge.getTitle(), badge.getEmoji())
                 );
                 log.info("Badge awarded: userId={}, badge={}", userId, badge.name());
+            } else if (badge.getProgress(user) >= 0.80) {
+                // Nudge once when the user first crosses 80% progress. Idempotency is
+                // enforced downstream via notifications.event_id UNIQUE.
+                eventPublisher.publishEvent(new AchievementProgressEvent(
+                        userId, badge.name(), badge.getTitle(), badge.getRemaining(user)));
             }
         }
 

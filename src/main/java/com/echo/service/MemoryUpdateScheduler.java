@@ -59,30 +59,21 @@ public class MemoryUpdateScheduler {
             try {
                 profileSummaryRepo.findByUserId(user.getId()).ifPresent(profile -> {
                     String digest = profile.getWeeklyDigest();
-                    if (digest != null && !digest.isBlank()) {
-                        boolean turkish = "tr".equalsIgnoreCase(user.getPreferredLanguage());
-                        String title = turkish
-                                ? "Haftalık Yansıman Hazır"
-                                : "Your Weekly Reflection is Ready";
-
-                        // Truncate for notification body (max 200 chars)
-                        String body = digest.length() > 200
-                                ? digest.substring(0, 197) + "..."
-                                : digest;
-
-                        String eventId = "weekly_reflection:" + user.getId() + ":" + LocalDate.now();
-
-                        notificationService.notify(
-                                user.getId(),
-                                NotificationType.WEEKLY_REFLECTION,
-                                title,
-                                body,
-                                "INSIGHTS",
-                                null,
-                                eventId,
-                                null
-                        );
+                    if (digest == null || digest.isBlank()) {
+                        return;
                     }
+                    // Push payload uses the generic localized template — the actual
+                    // AI-generated digest stays inside the app to avoid leaking
+                    // sensitive content to the lock screen / notification center.
+                    notificationService.notifyTemplated(
+                            user.getId(),
+                            NotificationType.WEEKLY_REFLECTION,
+                            java.util.Map.of(),
+                            "INSIGHTS",
+                            null,
+                            "weekly_reflection:" + user.getId() + ":" + LocalDate.now(),
+                            null
+                    );
                 });
                 sent++;
             } catch (Exception e) {

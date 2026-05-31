@@ -25,4 +25,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.accountDeletionRequestedAt IS NOT NULL " +
             "AND u.accountDeletionRequestedAt < :before")
     List<User> findUsersDueForHardDelete(@Param("before") OffsetDateTime before);
+
+    /**
+     * Stream of active accounts whose preferred local hour matches `preferredHour`
+     * when projected through their stored timezone. Joins notification_preferences
+     * and only emits enabled, undeleted users.
+     */
+    @Query("SELECT u FROM User u JOIN NotificationPreference np ON np.user = u " +
+            "WHERE u.active = true AND u.accountDeletionRequestedAt IS NULL " +
+            "AND np.masterEnabled = true AND np.preferredLocalHour = :preferredHour")
+    List<User> findUsersForReminderHour(@Param("preferredHour") int preferredHour);
 }

@@ -29,6 +29,8 @@ public class AppProperties {
     @Valid private Resend resend = new Resend();
     @NestedConfigurationProperty
     @Valid private Apple apple = new Apple();
+    @NestedConfigurationProperty
+    @Valid private Apns apns = new Apns();
     private Prompts prompts = new Prompts();
     @Valid private Dlq dlq = new Dlq();
 
@@ -64,6 +66,28 @@ public class AppProperties {
         }
 
         validateStorage();
+        validateApns();
+    }
+
+    private void validateApns() {
+        if (!apns.isEnabled()) {
+            return;
+        }
+        requireApnsValue("APNS_TEAM_ID", apns.getTeamId());
+        requireApnsValue("APNS_KEY_ID", apns.getKeyId());
+        requireApnsValue("APNS_KEY_PATH", apns.getKeyPath());
+        requireApnsValue("APNS_TOPIC", apns.getTopic());
+        String env = apns.getEnvironment() == null ? "" : apns.getEnvironment().trim().toLowerCase(Locale.ROOT);
+        if (!env.equals("production") && !env.equals("development") && !env.equals("sandbox")) {
+            throw new IllegalStateException(
+                    "APNS_ENVIRONMENT must be one of: production, development, sandbox");
+        }
+    }
+
+    private void requireApnsValue(String envName, String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalStateException(envName + " is required when APNS_ENABLED=true");
+        }
     }
 
     @Getter @Setter
@@ -159,6 +183,18 @@ public class AppProperties {
         private String issuerId;
         private String keyId;
         private String keyPath;
+    }
+
+    @Getter @Setter
+    public static class Apns {
+        private boolean enabled = false;
+        private String environment = "production";
+        private String teamId;
+        private String keyId;
+        private String keyPath;
+        private String topic;
+        @Positive private int connectionTimeoutSeconds = 10;
+        @Positive private int responseTimeoutSeconds = 15;
     }
 
     @Getter @Setter

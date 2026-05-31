@@ -39,7 +39,7 @@ public class MoodAlertService {
         int alerts = 0;
         for (var user : activeUsers) {
             if (hasLowMoodStreak(user.getId())) {
-                sendLowMoodAlert(user.getId(), user.getPreferredLanguage());
+                sendLowMoodAlert(user.getId());
                 alerts++;
             }
         }
@@ -64,22 +64,13 @@ public class MoodAlertService {
                 .allMatch(r -> r.getMoodScore() != null && r.getMoodScore().compareTo(LOW_MOOD_SCORE) < 0);
     }
 
-    private void sendLowMoodAlert(java.util.UUID userId, String language) {
-        boolean turkish = "tr".equalsIgnoreCase(language);
-        String title = turkish
-                ? "Seni düşünüyoruz"
-                : "We're thinking of you";
-        String body = turkish
-                ? "Son günlerde biraz zor bir dönemden geçiyor olabilirsin. Coach ile konuşmak ister misin?"
-                : "You may be going through a tough time lately. Would you like to talk to your Coach?";
-
+    private void sendLowMoodAlert(java.util.UUID userId) {
         String eventId = "mood_alert:" + userId + ":" + LocalDate.now();
 
-        notificationService.notify(
+        notificationService.notifyTemplated(
                 userId,
                 NotificationType.MOOD_ALERT,
-                title,
-                body,
+                java.util.Map.of(),
                 "COACH",
                 null,
                 eventId,

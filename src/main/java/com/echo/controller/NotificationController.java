@@ -1,9 +1,11 @@
 package com.echo.controller;
 
+import com.echo.dto.response.NotificationPreferencesResponse;
 import com.echo.dto.response.NotificationResponse;
 import com.echo.dto.response.PagedResponse;
 import com.echo.security.UserPrincipal;
 import com.echo.service.NotificationService;
+import com.echo.service.notification.NotificationPreferenceService;
 import com.echo.util.PageableFactory;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +24,7 @@ import java.util.UUID;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final NotificationPreferenceService preferenceService;
     private final PageableFactory pageableFactory;
 
     @GetMapping
@@ -61,9 +64,69 @@ public class NotificationController {
     public ResponseEntity<Void> registerPushToken(
             @Valid @RequestBody PushTokenRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
-        notificationService.registerPushToken(principal.getId(), request.token(), request.platform());
+        notificationService.registerPushToken(
+                principal.getId(),
+                request.token(),
+                request.platform(),
+                request.environment());
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    private record PushTokenRequest(@NotBlank String token, String platform) {}
+    @DeleteMapping("/push-token")
+    public ResponseEntity<Void> unregisterPushToken(@Valid @RequestBody UnregisterPushTokenRequest request) {
+        notificationService.deactivatePushToken(request.token());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/preferences")
+    public ResponseEntity<NotificationPreferencesResponse> getPreferences(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(
+                NotificationPreferencesResponse.from(preferenceService.getOrCreate(principal.getId()))
+        );
+    }
+
+    @PutMapping("/preferences")
+    public ResponseEntity<NotificationPreferencesResponse> updatePreferences(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody NotificationPreferencesUpdateRequest body) {
+        var patch = new NotificationPreferenceService.NotificationPreferencePatch(
+                body.masterEnabled(),
+                body.dailyRemindersEnabled(),
+                body.communityEnabled(),
+                body.achievementsEnabled(),
+                body.insightsEnabled(),
+                body.moodAlertsEnabled(),
+                body.capsulesEnabled(),
+                body.coachEnabled(),
+                body.systemEnabled(),
+                body.preferredLocalHour(),
+                body.quietHoursStartLocal(),
+                body.quietHoursEndLocal(),
+                body.timezone()
+        );
+        return ResponseEntity.ok(
+                NotificationPreferencesResponse.from(preferenceService.update(principal.getId(), patch))
+        );
+    }
+
+    private record PushTokenRequest(@NotBlank String token, String platform, String environment) {}
+
+    private record UnregisterPushTokenRequest(@NotBlank String token) {}
+
+    private record NotificationPreferencesUpdateRequest(
+            Boolean masterEnabled,
+            Boolean dailyRemindersEnabled,
+            Boolean communityEnabled,
+            Boolean achievementsEnabled,
+            Boolean insightsEnabled,
+            Boolean moodAlertsEnabled,
+            Boolean capsulesEnabled,
+            Boolean coachEnabled,
+            Boolean systemEnabled,
+            Integer preferredLocalHour,
+            Integer quietHoursStartLocal,
+            Integer quietHoursEndLocal,
+            String timezone
+    ) {}
 }

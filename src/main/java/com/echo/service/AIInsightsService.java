@@ -50,6 +50,7 @@ public class AIInsightsService {
 
     @Transactional(readOnly = true)
     public AIInsightsResponse getInsights(UUID userId, int periodDays) {
+        
         // TODO Atakan: tier-based period gating temporarily disabled (test phase).
         // Re-enable by reading FeatureKey.INSIGHTS_MAX_PERIOD via entitlementService
         // and surfacing 402 + locked-period UX (see plan).

@@ -29,4 +29,10 @@ public interface CoachSessionRepository extends JpaRepository<CoachSession, UUID
              AND cs.started_at BETWEEN :fromDate AND :toDate
            """, nativeQuery = true)
     List<java.sql.Date> findSessionDatesByUserAndRange(UUID userId, OffsetDateTime fromDate, OffsetDateTime toDate);
+
+    @Query("SELECT cs FROM CoachSession cs " +
+            "WHERE cs.active = false " +
+            "AND cs.updatedAt BETWEEN :from AND :to")
+    List<CoachSession> findEndedBetween(@Param("from") OffsetDateTime from,
+                                        @Param("to") OffsetDateTime to);
 }

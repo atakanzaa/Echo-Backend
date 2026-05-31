@@ -83,6 +83,16 @@ app:
     key-id: ${APPLE_KEY_ID:}
     key-path: ${APPLE_KEY_PATH:}
 
+  apns:
+    enabled: ${APNS_ENABLED:false}
+    environment: ${APNS_ENVIRONMENT:production}
+    team-id: ${APNS_TEAM_ID:}
+    key-id: ${APNS_KEY_ID:}
+    key-path: ${APNS_KEY_PATH:}
+    topic: ${APNS_TOPIC:}
+    connection-timeout-seconds: ${APNS_CONNECTION_TIMEOUT:10}
+    response-timeout-seconds: ${APNS_RESPONSE_TIMEOUT:15}
+
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
 
