@@ -13,6 +13,8 @@ services:
       - .env.prod
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    volumes:
+      - ./secrets/apns_auth_key.p8:/run/secrets/apns_auth_key.p8:ro
     depends_on:
       db:
         condition: service_healthy
