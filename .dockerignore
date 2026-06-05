@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+graphify-out/
+.codex/
+*.md
+secrets/
+.env*
+docker-compose*.yml
+.idea/
+*.iml
+.DS_Store
