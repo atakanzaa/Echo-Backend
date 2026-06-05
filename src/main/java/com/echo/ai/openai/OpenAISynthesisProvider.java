@@ -103,7 +103,6 @@ public class OpenAISynthesisProvider implements AISynthesisProvider {
         );
 
         String raw = extractContent(response.getBody());
-        log.debug("OpenAI synthesis yanıtı alındı, parse ediliyor");
         return parseResponse(raw);
     }
 
