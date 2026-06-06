@@ -45,7 +45,9 @@ class ResendWebhookServiceTest {
     ResendWebhookService resendWebhookService;
 
     ResendWebhookServiceTest() {
-        appProperties.getResend().setWebhookSecret("whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw");
+        // Fake test-only Svix secret (valid base64 after the whsec_ prefix).
+        // The test signs and verifies with the same value, so no real secret is needed.
+        appProperties.getResend().setWebhookSecret("whsec_ZWNob190ZXN0X3dlYmhvb2tfc2VjcmV0");
     }
 
     @Test
