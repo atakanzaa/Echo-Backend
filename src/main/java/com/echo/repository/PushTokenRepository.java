@@ -18,6 +18,8 @@ public interface PushTokenRepository extends JpaRepository<PushToken, UUID> {
 
     List<PushToken> findByUserIdAndActiveTrue(UUID userId);
 
+    long countByActiveTrue();
+
     @Modifying
     @Query("DELETE FROM PushToken t " +
             "WHERE t.active = false " +

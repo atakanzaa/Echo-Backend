@@ -33,4 +33,6 @@ public interface AiJobDlqRepository extends JpaRepository<AiJobDlq, UUID> {
            """, nativeQuery = true)
     List<AiJobDlq> findRetryableJobsForUpdate(@Param("now") OffsetDateTime now,
                                               @Param("limit") int limit);
+
+    long countByResolvedAtIsNull();
 }

@@ -17,7 +17,8 @@ public record UserResponse(
         BigDecimal moodScoreAvg,
         String language,
         boolean emailVerified,
-        boolean passwordLoginEnabled
+        boolean passwordLoginEnabled,
+        String role
 ) {
     public static UserResponse from(User user) {
         // Recompute effective streak at read time: if the user missed yesterday, streak is broken
@@ -38,7 +39,8 @@ public record UserResponse(
                 user.getMoodScoreAvg(),
                 user.getPreferredLanguage(),
                 user.isEmailVerified(),
-                user.isPasswordLoginEnabled()
+                user.isPasswordLoginEnabled(),
+                user.getRole()
         );
     }
 }

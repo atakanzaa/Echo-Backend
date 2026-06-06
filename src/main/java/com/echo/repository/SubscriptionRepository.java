@@ -16,4 +16,6 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
     Optional<Subscription> findByOriginalTransactionId(String originalTransactionId);
 
     List<Subscription> findByStatusInAndExpiresDateBefore(List<SubscriptionStatus> statuses, OffsetDateTime date);
+
+    long countByStatus(SubscriptionStatus status);
 }

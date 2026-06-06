@@ -116,6 +116,11 @@ app:
     synthesis-version:     ${PROMPT_SYNTHESIS_VERSION:synthesis-v2}
     transcription-version: ${PROMPT_TRANSCRIPTION_VERSION:transcription-v1}
 
+  version: ${APP_VERSION:1.0.0}
+
+  admin:
+    error-log-retention-days: ${ADMIN_ERROR_LOG_RETENTION_DAYS:30}
+
 management:
   endpoints:
     web:

@@ -17,6 +17,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByEmail(String email);
 
+    long countByCreatedAtAfter(OffsetDateTime since);
+
     /** Son N günde aktif olan kullanıcılar — haftalık memory update scheduler için */
     @Query("SELECT u FROM User u WHERE u.lastEntryDate >= :since")
     List<User> findUsersWithRecentEntries(@Param("since") LocalDate since);

@@ -1,12 +1,20 @@
 package com.echo.exception;
 
 import com.echo.dto.response.ErrorResponse;
+import com.echo.security.UserPrincipal;
+import com.echo.service.SystemErrorLogService;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -22,11 +30,15 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final SystemErrorLogService systemErrorLogService;
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {
@@ -117,8 +129,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(ServiceUnavailableException.class)
-    public ResponseEntity<ErrorResponse> handleServiceUnavailable(ServiceUnavailableException ex) {
+    public ResponseEntity<ErrorResponse> handleServiceUnavailable(ServiceUnavailableException ex,
+                                                                  HttpServletRequest request) {
         log.warn("Service temporarily unavailable: {}", ex.getMessage());
+        recordError("CRITICAL", HttpStatus.SERVICE_UNAVAILABLE.value(), "SERVICE_UNAVAILABLE", ex, request);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of("SERVICE_UNAVAILABLE", "Service temporarily unavailable"));
     }
@@ -155,8 +169,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
+    public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("İşlenmeyen hata", ex);
+        // Skip persistence for data-access failures: the DB is likely the problem,
+        // and the recording write would fail too.
+        if (!(ex instanceof DataAccessException)) {
+
+            recordError("ERROR", HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_ERROR", ex, request);
+        }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.of("INTERNAL_ERROR", "Beklenmeyen bir hata oluştu"));
     }
@@ -164,5 +184,29 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponse> badRequest(String code, String message) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(code, message));
+    }
+
+    private void recordError(String severity, int status, String code,
+                             Exception ex, HttpServletRequest request) {
+        systemErrorLogService.record(
+                severity,
+                status,
+                code,
+                ex.getClass().getSimpleName(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                request.getMethod(),
+                MDC.get("requestId"),
+                currentUserId()
+        );
+    }
+
+    private UUID currentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof UserPrincipal principal) {
+
+            return principal.getId();
+        }
+        return null;
     }
 }

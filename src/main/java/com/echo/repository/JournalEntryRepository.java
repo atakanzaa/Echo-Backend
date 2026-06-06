@@ -94,4 +94,21 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
     List<java.sql.Timestamp> findRecordedAtByUserAndDateRange(@Param("userId") UUID userId,
                                                                @Param("startDate") LocalDate startDate,
                                                                @Param("endDate") LocalDate endDate);
+
+    @Query(value = "SELECT COUNT(*) FROM journal_entries WHERE created_at >= :since", nativeQuery = true)
+    long countCreatedSince(@Param("since") OffsetDateTime since);
+
+    @Query(value = "SELECT COUNT(*) FROM journal_entries WHERE status = 'failed'", nativeQuery = true)
+    long countFailed();
+
+    @Query(value = """
+           SELECT COUNT(*) FROM journal_entries
+           WHERE status IN ('uploading', 'transcribing', 'analyzing')
+             AND created_at < :stuckBefore
+           """, nativeQuery = true)
+    long countStuck(@Param("stuckBefore") OffsetDateTime stuckBefore);
+
+    @Query(value = "SELECT COUNT(DISTINCT user_id) FROM journal_entries WHERE created_at >= :since",
+            nativeQuery = true)
+    long countDistinctActiveUsersSince(@Param("since") OffsetDateTime since);
 }

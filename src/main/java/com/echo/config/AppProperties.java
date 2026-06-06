@@ -33,6 +33,8 @@ public class AppProperties {
     @Valid private Apns apns = new Apns();
     private Prompts prompts = new Prompts();
     @Valid private Dlq dlq = new Dlq();
+    @Valid private Admin admin = new Admin();
+    private String version = "1.0.0";
 
     @PostConstruct
     public void validate() {
@@ -210,6 +212,12 @@ public class AppProperties {
         @Positive private long baseBackoffMinutes = 5;
         /** Cap for exponential backoff to avoid runaway delays. */
         @Positive private long maxBackoffMinutes = 240;
+    }
+
+    @Getter @Setter
+    public static class Admin {
+        // Retention window for system_error_log rows; older rows are pruned.
+        @Positive private int errorLogRetentionDays = 30;
     }
 
     @Getter @Setter
